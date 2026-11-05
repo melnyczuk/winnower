@@ -1,0 +1,18 @@
+# Copy to harvester.toml (git-ignored) or set the matching HARVESTER_* env vars.
+
+# Where samples, sidecars and the index live. A local path or file:// URI now;
+# s3://bucket/prefix later (install the `s3` extra). Nothing else changes.
+storage_root = "./data"
+
+# Freesound API key from https://freesound.org/apiv2/apply (env: FREESOUND_TOKEN)
+# freesound_token = "..."
+
+[licences]
+# allow: use freely · flag: keep but mark (e.g. non-commercial) · deny: skip at harvest time
+allow = ["CC0-1.0", "PDM", "CC-BY-3.0", "CC-BY-4.0"]
+flag = ["CC-BY-NC-3.0", "CC-BY-NC-4.0", "CC-BY-SA-3.0", "CC-BY-SA-4.0", "Sampling+"]
+
+[analysis]
+sample_rate = 44100
+max_regions_per_file = 4
+min_interest = 0.35
