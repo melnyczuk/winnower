@@ -6,14 +6,13 @@ import hashlib
 import io
 import logging
 from datetime import UTC, datetime
-from pathlib import Path
 
 import librosa
 import numpy as np
 import soundfile as sf
 
 from . import PIPELINE_VERSION
-from .analysis import Region, compute_features, find_regions, load_audio
+from .analysis import Region, audio_duration, compute_features, find_regions, load_audio
 from .config import Settings
 from .licences import LicenceInfo, attribution, decide
 from .sources.base import SourceItem
@@ -80,66 +79,97 @@ def process_audio(
     source: dict,
     licence: LicenceInfo | None,
     analysed_from: str,
+    lossy: bool = False,
 ) -> list[dict]:
-    """Analyse one file and write a FLAC + sidecar for each selected region."""
+    """Analyse one file and write a FLAC + sidecar for each selected region.
+
+    Files longer than ``settings.analysis.chunk_s`` are read and analysed chunk by chunk
+    (each chunk can yield up to ``max_regions_per_file``), so a 70-minute album side or DJ
+    mix needs no more memory than a 10-minute track.
+    """
     sr = settings.analysis.sample_rate
-    y, sr = load_audio(audio, sr)
-    regions = find_regions(
-        y,
-        sr,
-        max_regions=settings.analysis.max_regions_per_file,
-        min_interest=settings.analysis.min_interest,
-    )
-    # Lossy previews gain nothing from 24-bit; keep 24-bit for lossless sources.
-    subtype = "PCM_16" if analysed_from == "preview" else "PCM_24"
+    chunk = settings.analysis.chunk_s
+    total = audio_duration(audio)
+    # Lossy sources gain nothing from 24-bit; keep 24-bit for lossless ones.
+    subtype = "PCM_16" if lossy or analysed_from == "preview" else "PCM_24"
     out = []
-    for r in regions:
-        seg = _cut(y, sr, r)
-        data = _flac(seg, sr, subtype)
-        sid = hashlib.sha256(data).hexdigest()[:24]
-        store.write_bytes(sample_key(sid, "flac"), data)
-        loop = r.loop
-        sidecar = {
-            "id": sid,
-            "file": sample_key(sid, "flac"),
-            "source": source,
-            "licence": None
-            if licence is None
-            else {
-                "id": licence.id,
-                "url": licence.url,
-                "decision": licence.decision,
-                "reason": licence.reason,
-            },
-            "region": {
-                "type": r.type,
-                "start_s": round(r.start_s, 3),
-                "end_s": round(r.end_s, 3),
-                "loop_start_s": None if loop is None else round(loop[0], 3),
-                "loop_end_s": None if loop is None else round(loop[1], 3),
-                "crossfade_ms": 120 if loop else None,
-            },
-            "audio": {
-                "sr": sr,
-                "channels": int(seg.shape[0]),
-                "subtype": subtype,
-                "duration_s": round(seg.shape[1] / sr, 3),
-                "analysed_from": analysed_from,
-            },
-            "descriptors": _descriptors(seg, sr),
-            "scores": r.scores.to_dict() | {"rank": round(r.rank, 4)},
-            "tags": list(source.get("tags", [])),
-            "embeddings": {},
-            "caption": None,
-            "pipeline": {"version": PIPELINE_VERSION, "created_at": _now()},
-        }
-        store.write_json(sample_key(sid, "json"), sidecar)
-        out.append(sidecar)
+    offset = 0.0
+    while offset < total - 1e-3:
+        dur = min(chunk, total - offset)
+        if dur < 2.0 and offset > 0:
+            break
+        y, sr = load_audio(audio, sr, offset=offset, duration=dur)
+        regions = find_regions(
+            y,
+            sr,
+            max_regions=settings.analysis.max_regions_per_file,
+            min_interest=settings.analysis.min_interest,
+        )
+        for r in regions:
+            out.append(
+                _write_region(y, sr, r, offset, subtype, store, source, licence, analysed_from)
+            )
+        offset += chunk
     return out
 
 
-def harvest(items, fetch, store: Store, settings: Settings) -> dict:
-    """Run a stream of SourceItems through the pipeline. Returns counts."""
+def _write_region(y, sr, r: Region, offset, subtype, store, source, licence, analysed_from) -> dict:
+    seg = _cut(y, sr, r)
+    data = _flac(seg, sr, subtype)
+    sid = hashlib.sha256(data).hexdigest()[:24]
+    store.write_bytes(sample_key(sid, "flac"), data)
+    loop = r.loop
+    sidecar = {
+        "id": sid,
+        "file": sample_key(sid, "flac"),
+        "source": source,
+        "licence": None
+        if licence is None
+        else {
+            "id": licence.id,
+            "url": licence.url,
+            "decision": licence.decision,
+            "reason": licence.reason,
+        },
+        "region": {
+            "type": r.type,
+            "start_s": round(offset + r.start_s, 3),
+            "end_s": round(offset + r.end_s, 3),
+            "loop_start_s": None if loop is None else round(loop[0], 3),
+            "loop_end_s": None if loop is None else round(loop[1], 3),
+            "crossfade_ms": 120 if loop else None,
+        },
+        "audio": {
+            "sr": sr,
+            "channels": int(seg.shape[0]),
+            "subtype": subtype,
+            "duration_s": round(seg.shape[1] / sr, 3),
+            "analysed_from": analysed_from,
+        },
+        "descriptors": _descriptors(seg, sr),
+        "scores": r.scores.to_dict() | {"rank": round(r.rank, 4)},
+        "tags": list(source.get("tags", [])),
+        "embeddings": {},
+        "caption": None,
+        "pipeline": {"version": PIPELINE_VERSION, "created_at": _now()},
+    }
+    store.write_json(sample_key(sid, "json"), sidecar)
+    return sidecar
+
+
+LOCAL_UNKNOWN = LicenceInfo(
+    "local-unknown", None, "flag", "your own file, rights unknown: clear before release"
+)
+
+
+def harvest(
+    items, fetch, store: Store, settings: Settings, analysed_from: str = "preview", lossy=None
+) -> dict:
+    """Run a stream of SourceItems through the pipeline. Returns counts.
+
+    ``fetch(item)`` returns bytes or a local path. ``lossy(item)`` says whether the
+    source is lossy (default: previews are, originals aren't).
+    """
     counts = {
         "seen": 0,
         "denied": 0,
@@ -155,13 +185,23 @@ def harvest(items, fetch, store: Store, settings: Settings) -> dict:
             counts["skipped_existing"] += 1
             continue
         lic = decide(item.licence_raw, settings.licences)
+        if item.provider == "local" and item.licence_raw is None:
+            lic = LOCAL_UNKNOWN
         source = _source_record(item, lic)
         if lic.decision == "deny":
             counts["denied"] += 1
             store.write_json(meta_key, source | {"status": "denied", "reason": lic.reason})
             continue
         try:
-            samples = process_audio(fetch(item), store, settings, source, lic, "preview")
+            samples = process_audio(
+                fetch(item),
+                store,
+                settings,
+                source,
+                lic,
+                analysed_from,
+                lossy=lossy(item) if lossy else analysed_from == "preview",
+            )
         except Exception as e:  # one bad file must not stop a harvest
             log.warning("failed %s/%s: %s", item.provider, item.provider_id, e)
             counts["errors"] += 1
@@ -185,23 +225,10 @@ def _source_record(item: SourceItem, lic: LicenceInfo) -> dict:
         "audio_url": item.audio_url,
         "tags": item.tags,
         "attribution": attribution(item.title, item.author, item.page_url, lic.id),
+        **(
+            {"path": item.raw.get("path"), "file_tags": item.raw.get("file_tags")}
+            if item.provider == "local"
+            else {}
+        ),
         "retrieved_at": _now(),
     }
-
-
-def analyse_local(paths: list[Path], store: Store, settings: Settings) -> list[dict]:
-    """Analyse your own files (no licence gate; marked provider 'local')."""
-    out = []
-    for p in paths:
-        source = {
-            "provider": "local",
-            "provider_id": p.name,
-            "title": p.stem,
-            "author": None,
-            "page_url": None,
-            "path": str(p),
-            "tags": [],
-            "retrieved_at": _now(),
-        }
-        out += process_audio(str(p), store, settings, source, None, "original")
-    return out

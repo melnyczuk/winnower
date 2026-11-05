@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import subprocess
 from dataclasses import dataclass
 
 import librosa
@@ -15,18 +16,66 @@ N_MELS = 64
 N_MFCC = 20
 
 
-def load_audio(data: bytes | str, sr: int) -> tuple[np.ndarray, int]:
-    """Decode to float32 (channels, samples) at ``sr``. Accepts bytes or a path."""
-    src = io.BytesIO(data) if isinstance(data, bytes | bytearray) else data
+def _src(data: bytes | str):
+    return io.BytesIO(data) if isinstance(data, bytes | bytearray) else data
+
+
+def _ffmpeg_input(data: bytes | str) -> tuple[list[str], bytes | None]:
+    if isinstance(data, str):
+        return ["-i", data], None
+    return ["-i", "pipe:0"], bytes(data)
+
+
+def _ffprobe_duration(data: bytes | str) -> float:
+    args, stdin = _ffmpeg_input(data)
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", *args[1:]],
+        input=stdin,
+        capture_output=True,
+        check=True,
+    )
+    return float(out.stdout.strip())
+
+
+def _ffmpeg_load(data: bytes | str, sr: int, offset: float, duration: float | None) -> np.ndarray:
+    """Decode anything ffmpeg can (AAC/M4A, ALAC, Opus, ...) to float32 (channels, samples)."""
+    args, stdin = _ffmpeg_input(data)
+    cmd = ["ffmpeg", "-v", "error", "-nostdin" if stdin is None else "-hide_banner"]
+    cmd += ["-ss", str(offset)] + (["-t", str(duration)] if duration is not None else [])
+    cmd += args + ["-ac", "2", "-ar", str(sr), "-f", "f32le", "pipe:1"]
+    out = subprocess.run(cmd, input=stdin, capture_output=True, check=True)
+    y = np.frombuffer(out.stdout, dtype=np.float32).reshape(-1, 2).T
+    if np.allclose(y[0], y[1]):
+        y = y[:1]
+    return y
+
+
+def audio_duration(data: bytes | str) -> float:
+    """Duration in seconds, without decoding the whole file where possible."""
     try:
-        y, file_sr = sf.read(src, dtype="float32", always_2d=True)
-        y = y.T
-    except sf.LibsndfileError:
-        # Formats libsndfile can't read (e.g. some MP3s): fall back to librosa/audioread.
-        if isinstance(src, io.BytesIO):
-            src.seek(0)
-        y, file_sr = librosa.load(src, sr=None, mono=False)
-        y = np.atleast_2d(y).astype(np.float32)
+        info = sf.info(_src(data))
+        return info.frames / info.samplerate
+    except Exception:
+        return _ffprobe_duration(data)
+
+
+def load_audio(
+    data: bytes | str, sr: int, offset: float = 0.0, duration: float | None = None
+) -> tuple[np.ndarray, int]:
+    """Decode to float32 (channels, samples) at ``sr``. Accepts bytes or a path.
+
+    ``offset``/``duration`` (seconds) read just part of a file, so long recordings can be
+    analysed in chunks with bounded memory. libsndfile handles WAV/AIFF/FLAC/OGG/MP3;
+    anything else goes through the ffmpeg command-line tool.
+    """
+    try:
+        with sf.SoundFile(_src(data)) as f:
+            file_sr = f.samplerate
+            f.seek(int(offset * file_sr))
+            frames = -1 if duration is None else int(duration * file_sr)
+            y = f.read(frames, dtype="float32", always_2d=True).T
+    except (sf.LibsndfileError, RuntimeError):
+        y, file_sr = _ffmpeg_load(data, sr, offset, duration), sr
     if y.shape[0] > 2:
         y = y[:2]
     if file_sr != sr:

@@ -28,6 +28,7 @@ class AnalysisSettings:
     sample_rate: int = 44100
     max_regions_per_file: int = 4
     min_interest: float = 0.35
+    chunk_s: float = 600.0  # long files are analysed in chunks of this length
 
 
 @dataclass(frozen=True)
@@ -62,5 +63,6 @@ def load_settings(path: str | os.PathLike | None = None) -> Settings:
             min_interest=float(
                 os.environ.get("HARVESTER_MIN_INTEREST", ana.get("min_interest", 0.35))
             ),
+            chunk_s=float(ana.get("chunk_s", 600.0)),
         ),
     )

@@ -1,4 +1,4 @@
-"""Command line: ``harvester harvest freesound "drone"``, ``harvester analyse *.wav``, ..."""
+"""Command line: ``harvester harvest freesound "drone"``, ``harvester harvest local ~/Music``."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from . import index
 from .config import load_settings
-from .pipeline import analyse_local, harvest
+from .pipeline import harvest
 from .storage import Store
 
 
@@ -21,14 +21,20 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("-v", "--verbose", action="store_true")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    h = sub.add_parser("harvest", help="search a source, analyse results, keep good regions")
-    h.add_argument("source", choices=["freesound"])
-    h.add_argument("query")
-    h.add_argument("--limit", type=int, default=20, help="max source files to process")
-    h.add_argument("--max-duration", type=float, default=600.0, help="skip longer files (s)")
-
-    a = sub.add_parser("analyse", help="analyse your own audio files")
-    a.add_argument("paths", nargs="+", type=Path)
+    h = sub.add_parser("harvest", help="analyse audio from a source and keep good regions")
+    hs = h.add_subparsers(dest="source", required=True)
+    hf = hs.add_parser("freesound", help="search Freesound")
+    hf.add_argument("query")
+    hf.add_argument("--limit", type=int, default=20, help="max source files to process")
+    hf.add_argument("--max-duration", type=float, default=600.0, help="skip longer files (s)")
+    hl = hs.add_parser("local", help="files or folders on disk, e.g. albums you've downloaded")
+    hl.add_argument("paths", nargs="+", type=Path)
+    hl.add_argument(
+        "--licence",
+        help="licence URL or id for these files (e.g. a CC netlabel album); "
+        "default: kept but flagged as rights unknown",
+    )
+    hl.add_argument("--no-recursive", action="store_true", help="don't descend into subfolders")
 
     sub.add_parser("reindex", help="rebuild the index from sidecars")
 
@@ -46,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     settings = load_settings(args.config)
     store = Store(args.root or settings.storage_root)
 
-    if args.cmd == "harvest":
+    if args.cmd == "harvest" and args.source == "freesound":
         from .sources.freesound import Freesound
 
         if not settings.freesound_token:
@@ -55,18 +61,29 @@ def main(argv: list[str] | None = None) -> int:
         fs = Freesound(settings.freesound_token)
         items = fs.search(args.query, limit=args.limit, max_duration=args.max_duration)
         counts = harvest(items, fs.fetch_audio, store, settings)
-        n = index.rebuild(store)
-        print(json.dumps(counts | {"indexed": n}))
-    elif args.cmd == "analyse":
-        samples = analyse_local(args.paths, store, settings)
-        n = index.rebuild(store)
-        for s in samples:
-            sc, r = s["scores"], s["region"]
-            print(
-                f"{s['file']}  {r['type']:12s} {r['start_s']:7.2f}-{r['end_s']:7.2f}s  "
-                f"interest={sc['interest']:.2f}"
-            )
-        print(f"{len(samples)} samples written; {n} in index", file=sys.stderr)
+        print(json.dumps(counts | {"indexed": index.rebuild(store)}))
+    elif args.cmd == "harvest" and args.source == "local":
+        from .sources import local
+
+        files = list(local.iter_audio_files(args.paths, recursive=not args.no_recursive))
+        if not files:
+            print("No audio files found", file=sys.stderr)
+            return 1
+
+        def items():
+            for i, f in enumerate(files, 1):
+                print(f"[{i}/{len(files)}] {f}", file=sys.stderr)
+                yield local.to_item(f, args.licence)
+
+        counts = harvest(
+            items(),
+            lambda it: it.audio_url,
+            store,
+            settings,
+            analysed_from="original",
+            lossy=lambda it: local.is_lossy(it.audio_url),
+        )
+        print(json.dumps(counts | {"indexed": index.rebuild(store)}))
     elif args.cmd == "reindex":
         print(index.rebuild(store))
     elif args.cmd == "list":
@@ -77,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.licence:
             rows = [r for r in rows if r["licence"] in args.licence]
         if args.commercial:
-            rows = [r for r in rows if r["licence_decision"] in ("allow", "local")]
+            rows = [r for r in rows if r["licence_decision"] == "allow"]
         rows.sort(key=lambda r: r["rank"] or 0, reverse=True)
         for r in rows:
             if args.json:

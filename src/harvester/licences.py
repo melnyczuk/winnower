@@ -82,6 +82,6 @@ def attribution(title: str | None, author: str | None, url: str | None, lid: str
         parts.append(f"by {author}")
     if url:
         parts.append(f"({url})")
-    if lid:
+    if lid and not lid.startswith("local"):
         parts.append(f"licensed {lid}")
     return " ".join(parts)

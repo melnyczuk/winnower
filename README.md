@@ -17,6 +17,9 @@ Background and design decisions: the research report "Sample crawler stack" (Cla
 - [x] Region scoring: quality, stationarity, loop point, rhythmicity, trend, and an
       `interest` score with a floor
 - [x] Region types: `texture_loop`, `texture`, `gesture`, `one_shot`; diverse selection per file
+- [x] Local files and folders (`harvest local`): album tags read with mutagen, files already
+      processed are skipped, long files analysed in 10-minute chunks. Without `--licence`,
+      samples are flagged `local-unknown` and left out of `list --commercial`.
 - [x] Local storage now, S3 later by changing one setting
 - [x] Derived index (`index/samples.jsonl`, plus LanceDB if installed)
 - [ ] Lossless originals via Freesound OAuth2 (v0 cuts from the preview, marked
@@ -34,13 +37,16 @@ cp harvester.example.toml harvester.toml
 export FREESOUND_TOKEN=...       # https://freesound.org/apiv2/apply
 ```
 
-On a Raspberry Pi, use 64-bit Raspberry Pi OS; every dependency has Linux ARM wheels.
+On a Raspberry Pi, use 64-bit Raspberry Pi OS; every Python dependency has Linux ARM wheels.
+Install `ffmpeg` (`sudo apt install ffmpeg`) to read AAC/M4A, ALAC and other formats
+libsndfile can't.
 
 ## Use
 
 ```sh
 harvester harvest freesound "bowed metal" --limit 20
-harvester analyse ~/recordings/*.wav          # your own files, no licence gate
+harvester harvest local ~/Music/albums        # folders are scanned recursively
+harvester harvest local ~/netlabel-ep --licence https://creativecommons.org/licenses/by/4.0/
 harvester list --min-interest 0.6 --type texture_loop
 harvester list --commercial                   # only licences allowed for release
 harvester reindex                             # rebuild index from sidecars
