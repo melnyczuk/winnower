@@ -7,12 +7,12 @@ import pytest
 import soundfile as sf
 import synth
 
-from harvester import cli, index
-from harvester.analysis.features import audio_duration, load_audio
-from harvester.config import AnalysisSettings, Settings
-from harvester.pipeline import harvest, process_audio
-from harvester.sources import local
-from harvester.storage import Store
+from winnower import cli, index
+from winnower.analysis.features import audio_duration, load_audio
+from winnower.config import AnalysisSettings, Settings
+from winnower.pipeline import harvest, process_audio
+from winnower.sources import local
+from winnower.storage import Store
 
 
 def write(path, y, fmt=None):

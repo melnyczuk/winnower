@@ -1,4 +1,4 @@
-"""Command line: ``harvester harvest freesound "drone"``, ``harvester harvest local ~/Music``."""
+"""Command line: ``winnower harvest freesound "drone"``, ``winnower harvest local ~/Music``."""
 
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ from .storage import Store
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="harvester", description=__doc__)
-    ap.add_argument("--config", help="path to harvester.toml (default ./harvester.toml if present)")
+    ap = argparse.ArgumentParser(prog="winnower", description=__doc__)
+    ap.add_argument("--config", help="path to winnower.toml (default ./winnower.toml if present)")
     ap.add_argument("--root", help="override storage_root (local path or s3:// URI)")
     ap.add_argument("-v", "--verbose", action="store_true")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
         from .sources.freesound import Freesound
 
         if not settings.freesound_token:
-            print("Set FREESOUND_TOKEN or freesound_token in harvester.toml", file=sys.stderr)
+            print("Set FREESOUND_TOKEN or freesound_token in winnower.toml", file=sys.stderr)
             return 2
         fs = Freesound(settings.freesound_token)
         items = fs.search(args.query, limit=args.limit, max_duration=args.max_duration)

@@ -33,7 +33,7 @@ Background and design decisions: the research report "Sample crawler stack" (Cla
 ```sh
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"          # add ,index for LanceDB, ,s3 for buckets
-cp harvester.example.toml harvester.toml
+cp winnower.example.toml winnower.toml
 export FREESOUND_TOKEN=...       # https://freesound.org/apiv2/apply
 ```
 
@@ -44,12 +44,12 @@ libsndfile can't.
 ## Use
 
 ```sh
-harvester harvest freesound "bowed metal" --limit 20
-harvester harvest local ~/Music/albums        # folders are scanned recursively
-harvester harvest local ~/netlabel-ep --licence https://creativecommons.org/licenses/by/4.0/
-harvester list --min-interest 0.6 --type texture_loop
-harvester list --commercial                   # only licences allowed for release
-harvester reindex                             # rebuild index from sidecars
+winnower harvest freesound "bowed metal" --limit 20
+winnower harvest local ~/Music/albums        # folders are scanned recursively
+winnower harvest local ~/netlabel-ep --licence https://creativecommons.org/licenses/by/4.0/
+winnower list --min-interest 0.6 --type texture_loop
+winnower list --commercial                   # only licences allowed for release
+winnower reindex                             # rebuild index from sidecars
 ```
 
 ## Storage layout

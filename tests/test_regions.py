@@ -1,9 +1,9 @@
 import numpy as np
 import synth
 
-from harvester.analysis.features import compute_features
-from harvester.analysis.regions import find_regions
-from harvester.analysis.segment import segment
+from winnower.analysis.features import compute_features
+from winnower.analysis.regions import find_regions
+from winnower.analysis.segment import segment
 
 
 def test_segmentation_finds_boundaries_between_textures():

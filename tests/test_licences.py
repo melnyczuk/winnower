@@ -1,7 +1,7 @@
 import pytest
 
-from harvester.config import LicencePolicy
-from harvester.licences import attribution, decide, normalise
+from winnower.config import LicencePolicy
+from winnower.licences import attribution, decide, normalise
 
 P = LicencePolicy()
 

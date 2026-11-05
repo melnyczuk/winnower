@@ -1,4 +1,4 @@
-"""Settings from harvester.toml, overridable with HARVESTER_* / FREESOUND_TOKEN env vars."""
+"""Settings from winnower.toml, overridable with WINNOWER_* / FREESOUND_TOKEN env vars."""
 
 from __future__ import annotations
 
@@ -40,9 +40,9 @@ class Settings:
 
 
 def load_settings(path: str | os.PathLike | None = None) -> Settings:
-    """Read settings from a TOML file (default ./harvester.toml if present), then env vars."""
+    """Read settings from a TOML file (default ./winnower.toml if present), then env vars."""
     data: dict = {}
-    candidate = Path(path) if path else Path("harvester.toml")
+    candidate = Path(path) if path else Path("winnower.toml")
     if candidate.exists():
         data = tomllib.loads(candidate.read_text())
     elif path:
@@ -51,7 +51,7 @@ def load_settings(path: str | os.PathLike | None = None) -> Settings:
     lic = data.get("licences", {})
     ana = data.get("analysis", {})
     return Settings(
-        storage_root=os.environ.get("HARVESTER_STORAGE_ROOT", data.get("storage_root", "./data")),
+        storage_root=os.environ.get("WINNOWER_STORAGE_ROOT", data.get("storage_root", "./data")),
         freesound_token=os.environ.get("FREESOUND_TOKEN", data.get("freesound_token")),
         licences=LicencePolicy(
             allow=tuple(lic.get("allow", DEFAULT_ALLOW)),
@@ -61,7 +61,7 @@ def load_settings(path: str | os.PathLike | None = None) -> Settings:
             sample_rate=int(ana.get("sample_rate", 44100)),
             max_regions_per_file=int(ana.get("max_regions_per_file", 4)),
             min_interest=float(
-                os.environ.get("HARVESTER_MIN_INTEREST", ana.get("min_interest", 0.35))
+                os.environ.get("WINNOWER_MIN_INTEREST", ana.get("min_interest", 0.35))
             ),
             chunk_s=float(ana.get("chunk_s", 600.0)),
         ),

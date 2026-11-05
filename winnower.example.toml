@@ -1,4 +1,4 @@
-# Copy to harvester.toml (git-ignored) or set the matching HARVESTER_* env vars.
+# Copy to winnower.toml (git-ignored) or set the matching WINNOWER_* env vars.
 
 # Where samples, sidecars and the index live. A local path or file:// URI now;
 # s3://bucket/prefix later (install the `s3` extra). Nothing else changes.

@@ -6,12 +6,12 @@ import pytest
 import soundfile as sf
 import synth
 
-from harvester import index
-from harvester.config import AnalysisSettings, Settings
-from harvester.pipeline import harvest
-from harvester.sources.base import DailyQuotaExceeded, RateLimiter, SourceItem
-from harvester.sources.freesound import Freesound
-from harvester.storage import Store
+from winnower import index
+from winnower.config import AnalysisSettings, Settings
+from winnower.pipeline import harvest
+from winnower.sources.base import DailyQuotaExceeded, RateLimiter, SourceItem
+from winnower.sources.freesound import Freesound
+from winnower.storage import Store
 
 
 def ogg_bytes(y):

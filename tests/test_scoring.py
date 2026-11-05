@@ -1,8 +1,8 @@
 import pytest
 import synth
 
-from harvester.analysis.features import compute_features
-from harvester.analysis.scoring import score_region
+from winnower.analysis.features import compute_features
+from winnower.analysis.scoring import score_region
 
 FLOOR = 0.35
 

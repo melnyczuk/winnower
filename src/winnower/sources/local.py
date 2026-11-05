@@ -6,7 +6,7 @@ processed, and a re-tagged or replaced file is picked up again.
 
 Rights: a downloaded album is almost always "all rights reserved". Unless you pass a
 licence for the folder (e.g. a CC netlabel release), samples are kept but flagged
-``local-unknown`` so `harvester list --commercial` leaves them out.
+``local-unknown`` so `winnower list --commercial` leaves them out.
 """
 
 from __future__ import annotations

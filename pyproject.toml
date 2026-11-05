@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "harvester"
+name = "winnower"
 version = "0.1.0"
 description = "Harvest licensed audio, find aurally interesting textural regions, and store them with rich metadata."
 readme = "README.md"
@@ -25,10 +25,10 @@ index = ["lancedb>=0.20", "pyarrow>=15"]
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
-harvester = "harvester.cli:main"
+winnower = "winnower.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/harvester"]
+packages = ["src/winnower"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

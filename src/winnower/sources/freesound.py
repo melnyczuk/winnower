@@ -31,7 +31,7 @@ class Freesound:
             raise ValueError("Freesound needs an API token (FREESOUND_TOKEN)")
         self.token = token
         self.http = session or requests.Session()
-        self.http.headers.setdefault("User-Agent", "harvester/0.1 (+sample research tool)")
+        self.http.headers.setdefault("User-Agent", "winnower/0.1 (+sample research tool)")
         self.limiter = limiter or RateLimiter(per_minute=60, per_day=2000)
 
     def _get(self, url: str, params: dict | None = None) -> requests.Response:
