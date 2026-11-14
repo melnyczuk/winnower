@@ -30,6 +30,7 @@ import requests
 
 from .base import RateLimiter, SourceItem, download, http_session
 from .local import LOSSY_EXTS
+from .spec import PATH, UNLICENSED, Harvest, Source, SourceError, arg, limits, window
 
 log = logging.getLogger(__name__)
 
@@ -131,3 +132,23 @@ class Manifest:
 
 def iter_manifest(path: str | Path, **kw) -> Iterator[SourceItem]:
     return Manifest(path, **kw).search()
+
+
+def _open(args, settings) -> Harvest:
+    if not args.path.exists():
+        raise SourceError(f"No such manifest: {args.path}")
+    m = Manifest(args.path, provider=args.provider, allow_unknown=args.allow_unknown)
+    return Harvest(m.search(**window(args)), m.fetch_audio)
+
+
+SOURCE = Source(
+    "manifest",
+    "a CSV/JSONL list of files or URLs (datasets)",
+    (
+        PATH,
+        *limits(limit=None),  # a manifest is a deliberate list: all rows by default
+        UNLICENSED,
+        arg("--provider", help="provider name (default: the manifest's file name)"),
+    ),
+    _open,
+)

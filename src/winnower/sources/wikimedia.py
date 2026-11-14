@@ -20,6 +20,7 @@ import requests
 
 from .base import RateLimiter, SourceItem, download, http_session, strip_html
 from .local import AUDIO_EXTS, LOSSY_EXTS
+from .spec import QUERY, Harvest, Source, limits, window
 
 API = "https://commons.wikimedia.org/w/api.php"
 EXTMETA = "LicenseUrl|LicenseShortName|Artist|ImageDescription|ObjectName|Categories"
@@ -119,3 +120,11 @@ class WikimediaCommons:
 
     def fetch_audio(self, item: SourceItem) -> bytes:
         return download(self.http, item.audio_url)
+
+
+def _open(args, settings) -> Harvest:
+    wm = WikimediaCommons()
+    return Harvest(wm.search(args.query, **window(args)), wm.fetch_audio)
+
+
+SOURCE = Source("wikimedia", "search Wikimedia Commons (no key)", (QUERY, *limits()), _open)

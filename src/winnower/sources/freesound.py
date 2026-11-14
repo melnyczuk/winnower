@@ -13,6 +13,7 @@ from collections.abc import Iterator
 import requests
 
 from .base import RateLimiter, SourceItem, download, user_agent
+from .spec import QUERY, Harvest, Source, SourceError, arg, limits, window
 
 API = "https://freesound.org/apiv2"
 FIELDS = "id,name,username,license,url,previews,tags,description,duration"
@@ -94,3 +95,22 @@ class Freesound:
     def fetch_audio(self, item: SourceItem) -> bytes:
         # Previews are plain file downloads from the CDN, not API endpoint calls.
         return download(self.http, item.audio_url)
+
+
+def _open(args, settings) -> Harvest:
+    token = args.token or settings.freesound_token
+    if not token:
+        raise SourceError(
+            "Give --token, or set FREESOUND_TOKEN (environment or .env) "
+            "or freesound_token in winnower.toml"
+        )
+    fs = Freesound(token)
+    return Harvest(fs.search(args.query, **window(args)), fs.fetch_audio)
+
+
+SOURCE = Source(
+    "freesound",
+    "search Freesound (needs an API key)",
+    (QUERY, *limits(), arg("--token", help="Freesound API key (default: FREESOUND_TOKEN)")),
+    _open,
+)

@@ -12,10 +12,12 @@ licence for the folder (e.g. a CC netlabel release), samples are kept but flagge
 from __future__ import annotations
 
 import hashlib
+import sys
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from .base import SourceItem
+from .spec import Harvest, Source, SourceError, arg
 
 AUDIO_EXTS = {
     ".wav",
@@ -95,3 +97,34 @@ def to_item(path: Path, licence: str | None = None) -> SourceItem:
 
 def is_lossy(path: str) -> bool:
     return Path(path).suffix.lower() in LOSSY_EXTS
+
+
+def _announce(files: list[Path]) -> Iterator[Path]:
+    """Pass files through, printing ``[i/n] path`` progress to stderr."""
+    for i, f in enumerate(files, 1):
+        print(f"[{i}/{len(files)}] {f}", file=sys.stderr)
+        yield f
+
+
+def _open(args, settings) -> Harvest:
+    files = list(iter_audio_files(args.paths, recursive=not args.no_recursive))
+    if not files:
+        raise SourceError("No audio files found", code=1)
+    items = (to_item(f, args.licence) for f in _announce(files))
+    return Harvest(items, lambda it: it.audio_url)
+
+
+SOURCE = Source(
+    "local",
+    "files or folders on disk, e.g. albums you've downloaded",
+    (
+        arg("paths", nargs="+", type=Path),
+        arg(
+            "--licence",
+            help="licence URL or id for these files (e.g. a CC netlabel album); "
+            "default: kept but flagged as rights unknown",
+        ),
+        arg("--no-recursive", action="store_true", help="don't descend into subfolders"),
+    ),
+    _open,
+)

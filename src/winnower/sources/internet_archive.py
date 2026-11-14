@@ -22,6 +22,7 @@ import requests
 
 from .base import MAX_DOWNLOAD_BYTES, RateLimiter, SourceItem, download, http_session, strip_html
 from .local import AUDIO_EXTS, LOSSY_EXTS
+from .spec import QUERY, UNLICENSED, Harvest, Source, arg, limits, window
 
 SEARCH = "https://archive.org/advancedsearch.php"
 METADATA = "https://archive.org/metadata/{}"
@@ -200,3 +201,23 @@ class InternetArchive:
 
     def fetch_audio(self, item: SourceItem) -> bytes:
         return download(self.http, item.audio_url, self.max_bytes)
+
+
+def _open(args, settings) -> Harvest:
+    ia = InternetArchive(allow_unknown=args.allow_unknown)
+    return Harvest(
+        ia.search(args.query, collection=args.collection, **window(args)), ia.fetch_audio
+    )
+
+
+SOURCE = Source(
+    "archive",
+    "search the Internet Archive (no key)",
+    (
+        QUERY,
+        *limits(),
+        UNLICENSED,
+        arg("--collection", help="limit to a collection, e.g. netlabels, radio-aporee-maps"),
+    ),
+    _open,
+)

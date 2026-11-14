@@ -32,6 +32,7 @@ import requests
 
 from .base import RateLimiter, SourceItem, download, http_session, user_agent
 from .local import AUDIO_EXTS, LOSSY_EXTS
+from .spec import UNLICENSED, Harvest, Source, arg, limits, window
 
 log = logging.getLogger(__name__)
 _CC_LICENCE = ("creativecommons.org/licenses/", "creativecommons.org/publicdomain/")
@@ -280,3 +281,28 @@ class WebPages:
     def fetch_audio(self, item: SourceItem) -> bytes:
         self._limit(item.audio_url)
         return download(self.http, item.audio_url)
+
+
+def _open(args, settings) -> Harvest:
+    web = WebPages(
+        depth=args.depth,
+        max_pages=args.max_pages,
+        allow_unknown=args.allow_unknown,
+        licence=args.licence,
+    )
+    return Harvest(web.search(args.urls, **window(args)), web.fetch_audio)
+
+
+SOURCE = Source(
+    "web",
+    "audio linked from web pages (respects robots.txt)",
+    (
+        arg("urls", nargs="+", help="seed page URLs"),
+        *limits(),
+        UNLICENSED,
+        arg("--depth", type=int, default=0, help="follow same-host links this deep"),
+        arg("--max-pages", type=int, default=50, help="stop after this many pages"),
+        arg("--licence", help="licence URL or id for everything found (skips detection)"),
+    ),
+    _open,
+)

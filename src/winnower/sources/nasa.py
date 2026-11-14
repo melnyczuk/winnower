@@ -22,6 +22,7 @@ import requests
 
 from .base import RateLimiter, SourceItem, download, http_session, strip_html
 from .local import AUDIO_EXTS, LOSSY_EXTS
+from .spec import QUERY, Harvest, Source, limits, window
 
 API = "https://images-api.nasa.gov/search"
 DETAILS = "https://images.nasa.gov/details/{}"
@@ -120,3 +121,13 @@ class NasaMedia:
 
     def fetch_audio(self, item: SourceItem) -> bytes:
         return download(self.http, item.audio_url)
+
+
+def _open(args, settings) -> Harvest:
+    nasa = NasaMedia()
+    return Harvest(nasa.search(args.query, **window(args)), nasa.fetch_audio)
+
+
+SOURCE = Source(
+    "nasa", "search the NASA Image and Video Library (no key)", (QUERY, *limits()), _open
+)

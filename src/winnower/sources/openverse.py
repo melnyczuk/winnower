@@ -20,6 +20,7 @@ import requests
 
 from .base import RateLimiter, SourceItem, download, http_session
 from .local import LOSSY_EXTS
+from .spec import QUERY, Harvest, Source, arg, limits, window
 
 API = "https://api.openverse.org/v1"
 MAX_DEPTH = 240
@@ -136,3 +137,30 @@ class Openverse:
     def fetch_audio(self, item: SourceItem) -> bytes:
         # The file lives on the upstream host; no Openverse token goes with it.
         return download(self.http, item.audio_url)
+
+
+def _open(args, settings) -> Harvest:
+    ov = Openverse(args.token or settings.openverse_token, include_freesound=args.include_freesound)
+    items = ov.search(
+        args.query, licence=args.licence, licence_type=args.licence_type, **window(args)
+    )
+    return Harvest(items, ov.fetch_audio)
+
+
+SOURCE = Source(
+    "openverse",
+    "search Openverse (no key; OPENVERSE_TOKEN optional)",
+    (
+        QUERY,
+        *limits(),
+        arg("--token", help="Openverse token for higher limits (default: OPENVERSE_TOKEN)"),
+        arg("--license", dest="licence", help="Openverse licence codes, e.g. by,cc0"),
+        arg("--license-type", dest="licence_type", help="commercial, modification, all-cc, ..."),
+        arg(
+            "--include-freesound",
+            action="store_true",
+            help="keep Freesound results (skipped by default: use `harvest freesound`)",
+        ),
+    ),
+    _open,
+)

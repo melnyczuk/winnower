@@ -189,6 +189,11 @@ adjacent segments with a consistent trend is a planned improvement.
 
 ## Development
 
+To add a source, write `src/winnower/sources/<name>.py` with an adapter (a `search()`
+that yields `SourceItem`s and a `fetch_audio()`), end it with a `SOURCE` declaring the
+subcommand's name, arguments and how to open it (see `sources/spec.py`), and add it to
+`SOURCES` in `sources/registry.py`. Deleting a line there removes a source from the CLI.
+
 ```sh
 pytest -q
 ruff check src tests && ruff format src tests

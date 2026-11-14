@@ -19,6 +19,7 @@ import requests
 from .base import MAX_DOWNLOAD_BYTES, RateLimiter, SourceItem, download, http_session
 from .internet_archive import parse_length
 from .local import AUDIO_EXTS, LOSSY_EXTS
+from .spec import Harvest, Source, SourceError, arg, limits, window
 
 API = "https://ccmixter.org/api/query"
 
@@ -131,3 +132,22 @@ class CcMixter:
 
     def fetch_audio(self, item: SourceItem) -> bytes:
         return download(self.http, item.audio_url, self.max_bytes)
+
+
+def _open(args, settings) -> Harvest:
+    if not args.query and not args.tags:
+        raise SourceError("Give a search query or --tags")
+    cc = CcMixter()
+    return Harvest(cc.search(args.query, tags=args.tags, **window(args)), cc.fetch_audio)
+
+
+SOURCE = Source(
+    "ccmixter",
+    "search ccMixter (no key)",
+    (
+        arg("query", nargs="?", help="text to search for"),
+        *limits(),
+        arg("--tags", help="comma-separated ccMixter tags, e.g. ambient,field_recording"),
+    ),
+    _open,
+)
