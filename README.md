@@ -1,14 +1,16 @@
 # winnower
 
-Finds licensed audio online, keeps the aurally interesting, textural parts, and stores
-each one as a FLAC file with a JSON sidecar describing it. Built for arrhythmic, textural
-material: regions are found by timbral change rather than beats, and anything too uniform
-(hum, room tone, plain noise) is rejected. Designed to run on a Raspberry Pi 5 or a small
-server.
+Finds licensed audio online, keeps the aurally interesting phrases, and stores each one
+as a FLAC file with a JSON sidecar describing it. Regions are found by timbral change, and
+anything too uniform (hum, room tone, plain noise) is rejected. Every phrase is then cut to
+a whole number of bars and baked into a seamless loop: on the recording's own beat when it
+has one, and on a beat fitted to the sound when it doesn't (rain, drones, crackle).
+Samples are filed by key and named by key, tempo, length and a description. Designed to run
+on a Raspberry Pi 5 or a small server.
 
 Background and design decisions: the research report "Sample crawler stack" (Claude Doc).
 
-## Status (v0)
+## Status (v0.2)
 
 - [x] Freesound search adapter (API key; HQ OGG previews), rate limited to 60/min, 2,000/day
 - [x] Keyless sources: Openverse, Internet Archive, Wikimedia Commons, NASA, ccMixter,
@@ -19,7 +21,12 @@ Background and design decisions: the research report "Sample crawler stack" (Cla
 - [x] Timbral segmentation (ruptures PELT, L2 cost, linear memory)
 - [x] Region scoring: quality, stationarity, loop point, rhythmicity, trend, and an
       `interest` score with a floor
-- [x] Region types: `texture_loop`, `texture`, `gesture`, `one_shot`; diverse selection per file
+- [x] Phrases of 2 to 24 s, aiming at 10 s; diverse selection per file. No one-shots.
+- [x] Beat grids: tempo and downbeat detected for steadily pulsed recordings, fitted for
+      arrhythmic ones; every cut is 1, 2, 4 or 8 bars at a whole-number BPM (70 to 150)
+- [x] Seamless loops: the crossfade is baked in, so the file loops in any player or DAW
+- [x] Key (Krumhansl-Schmuckler on chroma), Camelot folders, descriptive file names,
+      BPM/key/attribution written into the FLAC tags
 - [x] Local files and folders (`harvest local`): album tags read with mutagen, files already
       processed are skipped, long files analysed in 10-minute chunks. Without `--licence`,
       samples are flagged `local-unknown` and left out of `list --commercial`.
@@ -57,7 +64,9 @@ winnower harvest manifest fsd50k.csv         # url|path, licence, title, author,
 winnower harvest web https://some-netlabel.example/release/ --depth 1
 winnower harvest local ~/Music/albums        # folders are scanned recursively
 winnower harvest local ~/netlabel-ep --licence https://creativecommons.org/licenses/by/4.0/
-winnower list --min-interest 0.6 --type texture_loop
+winnower list --min-interest 0.6 --type loop
+winnower list --camelot 8A --compatible --bpm 90-110   # mixes with A minor, 90-110 BPM
+winnower list --key F#m --min-length 8 --min-seam 0.6
 winnower list --commercial                   # only licences allowed for release
 winnower reindex                             # rebuild index from sidecars
 ```
@@ -162,10 +171,48 @@ advice.
 
 ```
 sources/{provider}/{provider_id}/meta.json   API response, licence, status
-samples/{id[:2]}/{id}.flac                   the cut region
-samples/{id[:2]}/{id}.json                   sidecar: the source of truth
+samples/{camelot} {key}/{name}.flac          the cut phrase, e.g. samples/8A A minor/
+samples/{camelot} {key}/{name}.json          sidecar: the source of truth
+samples/no key/{name}.flac|json              noise, crackle, most percussion
 index/samples.jsonl                          derived, rebuildable
 ```
+
+Names read `{key}_{bpm}bpm_{bars}bar_{length}s_{description}_{id6}`, for example
+`Am_96bpm_4bar_10.0s_pulsing-dark-samba-de-fato-1932_29424a.flac` or
+`nokey_108bpm_4bar_8.9s_crackling-airy-rain-on-tin-roof_8f31c0.flac`. The description is
+up to two words from the analysis (pulsing, crackling, drifting, tonal, dark, bright,
+airy; rising or falling for gestures), `gesture` for a gesture, then the start of the
+source title. Folders follow the Camelot wheel: neighbouring numbers, and A/B of the same
+number, mix harmonically (`list --camelot 8A --compatible`).
+
+Samples harvested before v0.2 stay where they were, in `samples/{id[:2]}/{id}.flac`.
+
+## Phrases, beats and loops
+
+Each candidate phrase gets a beat grid:
+
+- **Detected**: the whole recording's tempo is estimated, then re-estimated in 8 s windows.
+  If most windows agree (allowing for double and half time) and the beats stand out from
+  the onsets around them, the recording has a steady pulse. Each phrase then uses that tempo,
+  refined locally to follow a drifting live band, starts on the downbeat with the most onset
+  energy, and is moved onto the attack sample-accurately so the first hit isn't clipped.
+- **Fitted**: rain, drones and crackle give a different tempo in every window, so the sound
+  chooses instead. Every length that is 1, 2, 4 or 8 bars at a whole-number BPM from 70 to
+  150 is tried, from starts in the first 3 s of the candidate, and the one whose end flows
+  best back into its start (spectra around both points compared) wins, with a soft
+  preference for lengths near 10 s.
+
+Phrases are `loop`s, unless they move one way (`gesture`: a swell, a rising sweep), in which
+case they are cut to bars for length alone and not looped. A loop file is exactly
+`beats × 60 / bpm` seconds long. The audio just after the loop end is crossfaded into its
+first 30 to 80 ms (linear when the two sides are alike, equal-power when they aren't), so it
+wraps without a click and needs no loop points. `region.seam` (0 to 1) says how invisible
+the wrap is in timbre; filter with `list --min-seam`.
+
+Sidecar fields: `region.{bpm, beats, bars, tempo_source, tempo_confidence, seam,
+crossfade_ms}` and `key.{tonic, mode, name, short, camelot, confidence}` (`null` when
+there's no key). Lengths and tempo range are set under `[analysis]` in `winnower.toml`
+(`min_duration_s`, `target_duration_s`, `max_duration_s`, `bpm_min`, `bpm_max`).
 
 ## How regions are scored
 
@@ -175,14 +222,16 @@ All scores are 0 to 1 and stored in the sidecar.
 | --- | --- |
 | `interest` | Weighted mix of motion, modulation (0.5 to 20 Hz), spectral richness, micro-event rate, frame diversity and stereo movement. Regions under `min_interest` (default 0.35) are dropped. |
 | `stationarity` | Stability of ~2 s block statistics. High for rain, low for a sweep. |
-| `loopability` | Spectral match between the start and the best end point. |
-| `rhythmicity` | Periodic pulses at 30 to 240 BPM. Ranks rhythmic material down. |
+| `loopability` | The beat grid's seam: spectral match around the loop start and end. |
+| `rhythmicity` | Periodic pulses at 30 to 240 BPM. Neutral in the ranking. |
 | `trend` | One-way movement in loudness or brightness (gestures). |
 | `quality` | Silence, clipping, encoder low-pass cliffs. |
 
 The interest weights are hand-set and checked against synthetic sounds in
 `tests/synth.py` (sine, hum and white noise must fail; rain, crackle and sweeps must pass).
-They are a starting point to be replaced by models learned from your ratings.
+They are a starting point to be replaced by models learned from your ratings. The rank is
+`interest × quality`, nudged up for lengths near the 10 s target and, for loops, for a
+good seam.
 
 Known gap: slow continuous gestures can get split into several short segments; merging
 adjacent segments with a consistent trend is a planned improvement.

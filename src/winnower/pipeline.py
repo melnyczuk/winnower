@@ -15,37 +15,110 @@ from typing import Literal
 import librosa
 import numpy as np
 import soundfile as sf
+from mutagen.flac import FLAC
 
 from . import PIPELINE_VERSION
-from .analysis import Region, audio_duration, compute_features, find_regions, load_audio
-from .config import Settings
+from .analysis import (
+    GridSpec,
+    Key,
+    Region,
+    audio_duration,
+    compute_features,
+    estimate_key,
+    find_regions,
+    load_audio,
+)
+from .config import AnalysisSettings, Settings
 from .licences import LicenceInfo, attribution, decide
+from .naming import sample_path
 from .sources.base import SourceItem
-from .storage import Store, sample_key, source_key
+from .storage import Store, source_key
 
 log = logging.getLogger(__name__)
 FADE_S = 0.01
+XFADE_S = 0.08  # longest baked loop crossfade; shorter at fast tempos (a 32nd note)
 
 
 def _now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _cut(y: np.ndarray, sr: int, r: Region) -> np.ndarray:
-    a, b = int(r.start_s * sr), int(r.end_s * sr)
-    seg = y[:, a:b].copy()
-    n = min(int(FADE_S * sr), seg.shape[1] // 4)
-    if n > 0 and r.type != "texture_loop":
-        ramp = np.linspace(0.0, 1.0, n, dtype=np.float32)
-        seg[:, :n] *= ramp
-        seg[:, -n:] *= ramp[::-1]
-    return seg
+def _crossfade(head: np.ndarray, tail: np.ndarray) -> np.ndarray:
+    """Fade ``tail`` out over ``head`` fading in. Linear when the two are alike (no dip),
+    equal-power when they aren't (no hole in the level)."""
+    t = (np.arange(head.shape[1], dtype=np.float32) + 0.5) / head.shape[1]
+    a, b = head.mean(axis=0), tail.mean(axis=0)
+    r = float(np.corrcoef(a, b)[0, 1]) if a.std() > 0 and b.std() > 0 else 0.0
+    fade_in, fade_out = (t, 1 - t) if r > 0.5 else (np.sin(t * np.pi / 2), np.cos(t * np.pi / 2))
+    return head * fade_in + tail * fade_out
+
+
+def _cut(y: np.ndarray, sr: int, r: Region) -> tuple[np.ndarray, int]:
+    """The region as exactly ``beats`` beats of audio, and its baked crossfade in samples.
+
+    A loop is baked so the file itself wraps seamlessly: the audio just after the loop end
+    is crossfaded into the loop's first few ms (or, near the end of the chunk, the audio
+    just before the start into its last few ms). Other regions get short edge fades.
+    """
+    a = int(round(r.start_s * sr))
+    n = min(int(round(r.grid.length_s * sr)), y.shape[1] - a)
+    seg = y[:, a : a + n].copy()
+    if r.type == "loop":
+        x = min(int(XFADE_S * sr), int(7.5 / r.grid.bpm * sr), n // 4)
+        if a + n + x <= y.shape[1]:
+            seg[:, :x] = _crossfade(seg[:, :x], y[:, a + n : a + n + x])
+            return seg, x
+        if a >= x:
+            seg[:, n - x :] = _crossfade(y[:, a - x : a], seg[:, n - x :])
+            return seg, x
+    m = min(int(FADE_S * sr), seg.shape[1] // 4)
+    if m > 0:
+        ramp = np.linspace(0.0, 1.0, m, dtype=np.float32)
+        seg[:, :m] *= ramp
+        seg[:, -m:] *= ramp[::-1]
+    return seg, 0
 
 
 def _flac(seg: np.ndarray, sr: int, subtype: str) -> bytes:
     buf = io.BytesIO()
     sf.write(buf, seg.T, sr, format="FLAC", subtype=subtype)
     return buf.getvalue()
+
+
+def _tagged(data: bytes, sidecar: dict) -> bytes:
+    """Vorbis comments DAWs and players read: tempo, key, title, and the attribution, so a
+    CC BY credit travels with the file."""
+    buf = io.BytesIO(data)
+    tags = FLAC(buf)
+    src, region, key = sidecar["source"], sidecar["region"], sidecar["key"]
+    tags["BPM"] = str(region["bpm"])
+    if key:
+        tags["INITIALKEY"] = key["short"]
+    tags["TITLE"] = f"{src.get('title') or 'untitled'} ({region['type']})"
+    if src.get("author"):
+        tags["ARTIST"] = src["author"]
+    tags["COPYRIGHT"] = src.get("attribution") or ""
+    tags["COMMENT"] = f"winnower {sidecar['id']}; source {src.get('page_url') or ''}"
+    buf.seek(0)
+    tags.save(buf)
+    return buf.getvalue()
+
+
+def _key(k: Key | None) -> dict | None:
+    if k is None:
+        return None
+    return {
+        "tonic": k.tonic,
+        "mode": k.mode,
+        "name": k.name,
+        "short": k.short,
+        "camelot": k.camelot,
+        "confidence": k.confidence,
+    }
+
+
+def grid_spec(a: AnalysisSettings) -> GridSpec:
+    return GridSpec(a.min_duration_s, a.target_duration_s, a.max_duration_s, a.bpm_min, a.bpm_max)
 
 
 def _descriptors(y: np.ndarray, sr: int) -> dict:
@@ -104,7 +177,11 @@ def process_audio(
         _write_region(store, _prepare(y, sr, r, offset, subtype, source, licence, analysed_from))
         for offset, y, sr in loaded
         for r in find_regions(
-            y, sr, max_regions=a.max_regions_per_file, min_interest=a.min_interest
+            y,
+            sr,
+            max_regions=a.max_regions_per_file,
+            min_interest=a.min_interest,
+            spec=grid_spec(a),
         )
     ]
 
@@ -126,13 +203,13 @@ class _Region:
 
 
 def _prepare(y, sr, r: Region, offset, subtype, source, licence, analysed_from) -> _Region:
-    seg = _cut(y, sr, r)
+    seg, xfade = _cut(y, sr, r)
     data = _flac(seg, sr, subtype)
     sid = hashlib.sha256(data).hexdigest()[:24]
-    loop = r.loop
+    loop, g = r.loop, r.grid
     sidecar = {
         "id": sid,
-        "file": sample_key(sid, "flac"),
+        "file": None,  # set below, once the sidecar can name it
         "source": source,
         "licence": None
         if licence is None
@@ -146,10 +223,17 @@ def _prepare(y, sr, r: Region, offset, subtype, source, licence, analysed_from) 
             "type": r.type,
             "start_s": round(offset + r.start_s, 3),
             "end_s": round(offset + r.end_s, 3),
+            "bpm": g.bpm,
+            "beats": g.beats,
+            "bars": g.bars,
+            "tempo_source": g.source,
+            "tempo_confidence": g.confidence,
+            "seam": round(g.seam, 4),
             "loop_start_s": None if loop is None else round(loop[0], 3),
-            "loop_end_s": None if loop is None else round(loop[1], 3),
-            "crossfade_ms": 120 if loop else None,
+            "loop_end_s": None if loop is None else round(seg.shape[1] / sr, 3),
+            "crossfade_ms": round(1000 * xfade / sr, 1) if loop else None,
         },
+        "key": _key(estimate_key(seg, sr)),
         "audio": {
             "sr": sr,
             "channels": int(seg.shape[0]),
@@ -164,13 +248,13 @@ def _prepare(y, sr, r: Region, offset, subtype, source, licence, analysed_from) 
         "caption": None,
         "pipeline": {"version": PIPELINE_VERSION, "created_at": _now()},
     }
-    return _Region(data, sidecar)
+    sidecar["file"] = sample_path(sidecar, "flac")
+    return _Region(_tagged(data, sidecar), sidecar)
 
 
 def _write_region(store: Store, region: _Region) -> dict:
-    sid = region.sidecar["id"]
-    store.write_bytes(sample_key(sid, "flac"), region.flac)
-    store.write_json(sample_key(sid, "json"), region.sidecar)
+    store.write_bytes(region.sidecar["file"], region.flac)
+    store.write_json(sample_path(region.sidecar, "json"), region.sidecar)
     return region.sidecar
 
 

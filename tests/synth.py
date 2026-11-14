@@ -75,5 +75,19 @@ def clicks(dur=12.0, bpm=120):
     return y[None].astype(np.float32)
 
 
+def midi(note):
+    return 440.0 * 2 ** ((note - 69) / 12)
+
+
+def chord(notes, dur=8.0):
+    """Held tones with a second harmonic, e.g. ``chord([57, 60, 64])`` for A minor."""
+    t = _t(dur)
+    y = sum(
+        0.1 * np.sin(2 * np.pi * midi(n) * t) + 0.03 * np.sin(4 * np.pi * midi(n) * t)
+        for n in notes
+    )
+    return y[None].astype(np.float32)
+
+
 def stereo(y_left, y_right):
     return np.vstack([y_left[0], y_right[0]]).astype(np.float32)

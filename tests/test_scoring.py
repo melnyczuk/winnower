@@ -34,10 +34,8 @@ def test_sweep_is_a_gesture_not_stationary():
     assert sc.stationarity < 0.3
 
 
-def test_rain_is_stationary_and_loopable():
-    sc = score(synth.rain())
-    assert sc.stationarity > 0.5
-    assert sc.loopability > 0.6
+def test_rain_is_stationary():
+    assert score(synth.rain()).stationarity > 0.5
 
 
 def test_stereo_movement_counts_only_for_stereo():

@@ -1,5 +1,5 @@
-"""Scores for a candidate region: quality, stationarity, loopability, rhythmicity and
-aural interest.
+"""Scores for a candidate region: quality, stationarity, rhythmicity, trend and aural
+interest. Loopability is the seam of the region's beat grid (see :mod:`.groove`).
 
 "Stationary" here means stable *statistics* over ~1 s blocks; "interest" demands
 variation at the fine, frame level. Rain or crackle passes both; mains hum, room tone and
@@ -33,8 +33,7 @@ class InterestParts:
 class Scores:
     quality: float
     stationarity: float
-    loopability: float
-    loop_end_s: float  # best loop end, relative to region start
+    loopability: float  # the grid's seam: filled in once the grid is fitted
     rhythmicity: float
     trend: float
     interest: float
@@ -42,7 +41,6 @@ class Scores:
 
     def to_dict(self) -> dict:
         d = asdict(self)
-        d.pop("loop_end_s")
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in d.items()} | {
             "interest_parts": {
                 k: (None if v is None else round(v, 4))
@@ -110,26 +108,6 @@ def stationarity(f: Features, s: slice) -> float:
         return 0.0
     spread = float(np.mean(B.std(axis=1)))
     return float(np.exp(-spread / 0.4))
-
-
-def loop_point(f: Features, s: slice, min_loop_s: float = 2.0) -> tuple[float, float]:
-    """Find the end point whose spectrum best matches the start. Returns (score, end_s)."""
-    M = f.logmel[:, s]
-    T = M.shape[1]
-    w = max(2, int(0.3 * f.fps))
-    lo = int(min_loop_s * f.fps)
-    if T < lo + w:
-        return 0.0, T / f.fps
-    head = M[:, :w].mean(axis=1)
-    best, best_t = -1.0, T
-    start = max(lo, int(0.6 * T))
-    for t in range(start, T - w + 1, max(1, w // 4)):
-        tail = M[:, t : t + w].mean(axis=1)
-        d = float(np.mean(np.abs(head - tail)))  # mean dB difference
-        sim = float(np.exp(-d / 3.0))
-        if sim > best:
-            best, best_t = sim, t + w // 2
-    return best, best_t / f.fps
 
 
 def rhythmicity(f: Features, s: slice) -> float:
@@ -251,13 +229,11 @@ def interest(f: Features, s: slice) -> tuple[float, InterestParts]:
 def score_region(y: np.ndarray, f: Features, start_s: float, end_s: float) -> Scores:
     s = slice(f.frame(start_s), max(f.frame(start_s) + 1, f.frame(end_s)))
     seg = y[:, int(start_s * f.sr) : int(end_s * f.sr)]
-    loop, loop_end = loop_point(f, s)
     inter, parts = interest(f, s)
     return Scores(
         quality=quality(seg, f, s),
         stationarity=stationarity(f, s),
-        loopability=loop,
-        loop_end_s=loop_end,
+        loopability=0.0,
         rhythmicity=rhythmicity(f, s),
         trend=trend(f, s),
         interest=inter,

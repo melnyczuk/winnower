@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "winnower"
-version = "0.1.0"
+version = "0.2.0"
 description = "Harvest licensed audio, find aurally interesting textural regions, and store them with rich metadata."
 readme = "README.md"
 requires-python = ">=3.11"

@@ -1,30 +1,31 @@
-"""Propose candidate regions, score them, and pick a diverse few per file."""
+"""Propose candidate regions, fit each to a beat grid, score them, and pick a diverse few
+per file."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
-import librosa
 import numpy as np
 
 from .features import Features, compute_features
-from .scoring import Scores, score_region
+from .groove import Grid, GridSpec, Pulse, grid_for, length_preference, pulse, snap_to_onset
+from .scoring import Scores, rhythmicity, score_region, trend
 from .segment import segment
 
-MIN_REGION_S = 2.0
-MAX_REGION_S = 20.0
-ONE_SHOT_MAX_S = 4.0
 EDGE_S = 0.6  # trimmed from each side of a segment: boundaries and file edges are smeared
+WINDOW_OVER_TARGET = 1.3  # candidate windows leave the grid room to choose start and length
+GESTURE_TREND = 0.7
 
 
 @dataclass
 class Region:
-    type: str  # texture_loop | texture | gesture | one_shot
+    type: str  # loop | gesture
     start_s: float
     end_s: float
     scores: Scores
     rank: float
     summary: np.ndarray  # timbre vector used for diversity
+    grid: Grid
 
     @property
     def duration_s(self) -> float:
@@ -32,19 +33,18 @@ class Region:
 
     @property
     def loop(self) -> tuple[float, float] | None:
-        if self.type != "texture_loop":
-            return None
-        return 0.0, min(self.duration_s, self.scores.loop_end_s)
+        """Loops are baked so the whole file loops."""
+        return (0.0, self.duration_s) if self.type == "loop" else None
 
 
-def _windows(a: float, b: float) -> list[tuple[float, float]]:
-    """Split a segment into candidate windows no longer than MAX_REGION_S."""
+def _windows(a: float, b: float, spec: GridSpec) -> list[tuple[float, float]]:
+    """Split a segment into overlapping candidate windows a little longer than the target."""
     length = b - a
-    if length < MIN_REGION_S:
+    if length < spec.min_s:
         return []
-    if length <= MAX_REGION_S:
+    if length <= spec.max_s:
         return [(a, b)]
-    win = min(MAX_REGION_S, max(8.0, length / 4))
+    win = min(spec.max_s, spec.target_s * WINDOW_OVER_TARGET)
     hop = win / 2
     out, t = [], a
     while t + win <= b + 1e-6:
@@ -53,43 +53,16 @@ def _windows(a: float, b: float) -> list[tuple[float, float]]:
     return out
 
 
-def _one_shots(f: Features) -> list[tuple[float, float]]:
-    """Onset to decay below -30 dB of its peak (or ONE_SHOT_MAX_S), with quiet before."""
-    onsets = librosa.onset.onset_detect(
-        onset_envelope=f.flux, sr=f.sr, hop_length=f.hop, units="frames"
-    )
-    rms_db = librosa.amplitude_to_db(f.rms + 1e-10)
-    out = []
-    pre = int(0.1 * f.fps)
-    for o in onsets:
-        if o < pre:
-            continue
-        peak_i = o + int(np.argmax(rms_db[o : o + int(0.2 * f.fps) + 1]))
-        peak = rms_db[peak_i]
-        if peak - rms_db[o - pre : o].mean() < 18:  # needs a clear attack out of quiet
-            continue
-        end_lim = min(f.n_frames, peak_i + int(ONE_SHOT_MAX_S * f.fps))
-        below = np.nonzero(rms_db[peak_i:end_lim] < peak - 30)[0]
-        end = peak_i + (below[0] if below.size else end_lim - peak_i)
-        if (end - o) / f.fps >= 0.15:
-            out.append((max(0.0, (o - 2) / f.fps), end / f.fps))
-    return out
+def _classify(sc: Scores) -> str:
+    """A gesture moves one way (a swell, a rising sweep) and isn't looped; everything else
+    is a bar-length loop. Its ``seam`` says how invisible the wrap is."""
+    return "gesture" if sc.trend >= GESTURE_TREND else "loop"
 
 
-def _classify(sc: Scores, one_shot: bool) -> str:
-    if one_shot:
-        return "one_shot"
-    if sc.trend >= 0.7:
-        return "gesture"
-    if sc.stationarity >= 0.45 and sc.loopability >= 0.6:
-        return "texture_loop"
-    return "texture"
-
-
-def _rank(sc: Scores, kind: str) -> float:
-    r = sc.interest * sc.quality * (1.0 - 0.6 * sc.rhythmicity)
-    if kind == "texture_loop":
-        r *= 0.85 + 0.15 * sc.loopability
+def _rank(sc: Scores, kind: str, grid: Grid, spec: GridSpec) -> float:
+    r = sc.interest * sc.quality * (0.85 + 0.15 * length_preference(grid.length_s, spec.target_s))
+    if kind == "loop":
+        r *= 0.85 + 0.15 * grid.seam
     return float(r)
 
 
@@ -99,30 +72,46 @@ def _summary(f: Features, a: float, b: float) -> np.ndarray:
     return v
 
 
+def _grid(
+    y: np.ndarray, f: Features, a: float, b: float, spec: GridSpec, beat: Pulse
+) -> Grid | None:
+    """Fit a window to a beat grid. Gestures are fitted for length alone (they don't loop);
+    detected downbeats are moved onto the attack, sample-accurately."""
+    s = slice(f.frame(a), max(f.frame(a) + 1, f.frame(b)))
+    loop = trend(f, s) < GESTURE_TREND
+    grid = grid_for(f, a, b, rhythmicity(f, s), spec, loop, beat)
+    if grid is not None and grid.source == "detected":
+        grid = replace(grid, start_s=snap_to_onset(y, f.sr, grid.start_s))
+    return grid
+
+
 def find_regions(
     y: np.ndarray,
     sr: int,
     max_regions: int = 4,
     min_interest: float = 0.35,
     features: Features | None = None,
+    spec: GridSpec | None = None,
 ) -> list[Region]:
-    """Segment, score and select up to ``max_regions`` diverse, interesting regions."""
+    """Segment, fit to beat grids, score and select up to ``max_regions`` diverse,
+    interesting regions."""
     f = features or compute_features(y, sr)
-    candidates: list[tuple[float, float, bool]] = []
-    for a, b in segment(f):
-        candidates += [(x, z, False) for x, z in _windows(a + EDGE_S, b - EDGE_S)]
-    candidates += [(a, b, True) for a, b in _one_shots(f)]
+    spec = spec or GridSpec()
+    windows = [w for a, b in segment(f) for w in _windows(a + EDGE_S, b - EDGE_S, spec)]
+    beat = pulse(f, spec)
 
     regions: list[Region] = []
-    for a, b, shot in candidates:
-        sc = score_region(y, f, a, b)
+    for a, b in windows:
+        grid = _grid(y, f, a, b, spec, beat)
+        if grid is None or grid.length_s < spec.min_s:
+            continue
+        sc = replace(score_region(y, f, grid.start_s, grid.end_s), loopability=grid.seam)
         if sc.quality == 0.0 or sc.interest < min_interest:
             continue
-        kind = _classify(sc, shot)
-        end = b
-        if kind == "texture_loop":
-            end = a + sc.loop_end_s
-        regions.append(Region(kind, a, end, sc, _rank(sc, kind), _summary(f, a, end)))
+        kind = _classify(sc)
+        summary = _summary(f, grid.start_s, grid.end_s)
+        rank = _rank(sc, kind, grid, spec)
+        regions.append(Region(kind, grid.start_s, grid.end_s, sc, rank, summary, grid))
     return _select(regions, max_regions)
 
 

@@ -7,9 +7,12 @@ the project goes through :class:`Store`, so switching is a copy plus a config ch
 Layout (relative to the root)::
 
     sources/{provider}/{provider_id}/meta.json   API response + licence snapshot
-    samples/{id[:2]}/{id}.flac                   the cut region, lossless
-    samples/{id[:2]}/{id}.json                   sidecar: the source of truth
+    samples/{camelot} {key}/{name}.flac          the cut region, lossless (see naming.py)
+    samples/{camelot} {key}/{name}.json          sidecar: the source of truth
+    samples/no key/{name}.flac|json              atonal material
     index/samples.jsonl                          derived, rebuildable
+
+Samples from v0.1 stay where they were, in ``samples/{id[:2]}/{id}.flac``.
 """
 
 from __future__ import annotations
@@ -64,10 +67,6 @@ class Store:
     def uri(self, key: str) -> str:
         """A location other libraries understand: a plain path locally, a URI otherwise."""
         return self._p(key) if self.is_local else self.fs.unstrip_protocol(self._p(key))
-
-
-def sample_key(sample_id: str, ext: str) -> str:
-    return f"samples/{sample_id[:2]}/{sample_id}.{ext}"
 
 
 def source_key(provider: str, provider_id: str, name: str = "meta.json") -> str:

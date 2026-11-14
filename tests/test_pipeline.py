@@ -6,6 +6,7 @@ import pytest
 import soundfile as sf
 import synth
 from fakes import FakeResponse, FakeSession
+from mutagen.flac import FLAC
 
 from winnower import index
 from winnower.config import AnalysisSettings, Settings
@@ -70,6 +71,15 @@ def test_harvest_writes_samples_sidecars_and_index(tmp_path):
     assert store.exists(sc["file"])
     y, sr = sf.read(io.BytesIO(store.read_bytes(sc["file"])))
     assert sr == synth.SR and abs(len(y) / sr - sc["audio"]["duration_s"]) < 0.01
+    region = sc["region"]
+    assert len(y) == round(region["beats"] * 60 / region["bpm"] * sr)
+    assert sc["audio"]["duration_s"] >= 2.0
+    assert sc["file"].endswith(f"_{sc['id'][:6]}.flac")
+    assert sc["file"].split("/")[1] == (
+        f"{sc['key']['camelot']} {sc['key']['name']}" if sc["key"] else "no key"
+    )
+    tags = FLAC(io.BytesIO(store.read_bytes(sc["file"])))
+    assert tags["BPM"] == [str(region["bpm"])] and tags["COPYRIGHT"][0].startswith('"t1"')
 
     denied = store.read_json("sources/freesound/3/meta.json")
     assert denied["status"] == "denied"

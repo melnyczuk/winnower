@@ -32,6 +32,12 @@ def flatten(sc: dict) -> dict:
         "licence": lic.get("id"),
         "licence_decision": lic.get("decision", "local"),
         "type": reg.get("type"),
+        "key": (sc.get("key") or {}).get("short"),
+        "camelot": (sc.get("key") or {}).get("camelot"),
+        "bpm": reg.get("bpm"),
+        "bars": reg.get("bars"),
+        "tempo_source": reg.get("tempo_source"),
+        "seam": reg.get("seam"),
         "duration_s": (sc.get("audio") or {}).get("duration_s"),
         "interest": scores.get("interest"),
         "stationarity": scores.get("stationarity"),
@@ -45,7 +51,7 @@ def flatten(sc: dict) -> dict:
 
 
 def rebuild(store: Store) -> int:
-    rows = [flatten(store.read_json(k)) for k in store.glob("samples/*/*.json")]
+    rows = [flatten(store.read_json(k)) for k in store.glob("samples/**/*.json")]
     store.write_bytes(INDEX_KEY, "".join(json.dumps(r) + "\n" for r in rows).encode())
     try:
         import lancedb  # type: ignore

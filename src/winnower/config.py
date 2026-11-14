@@ -27,6 +27,11 @@ class AnalysisSettings:
     max_regions_per_file: int = 4
     min_interest: float = 0.35
     chunk_s: float = 600.0  # long files are analysed in chunks of this length
+    min_duration_s: float = 2.0  # no phrase shorter than this
+    target_duration_s: float = 10.0  # phrase length aimed at
+    max_duration_s: float = 24.0
+    bpm_min: int = 70  # tempos are folded (doubled or halved) into this range
+    bpm_max: int = 150
 
 
 @dataclass(frozen=True)
@@ -90,5 +95,10 @@ def load_settings(path: str | os.PathLike | None = None) -> Settings:
                 os.environ.get("WINNOWER_MIN_INTEREST", ana.get("min_interest", 0.35))
             ),
             chunk_s=float(ana.get("chunk_s", 600.0)),
+            min_duration_s=float(ana.get("min_duration_s", 2.0)),
+            target_duration_s=float(ana.get("target_duration_s", 10.0)),
+            max_duration_s=float(ana.get("max_duration_s", 24.0)),
+            bpm_min=int(ana.get("bpm_min", 70)),
+            bpm_max=int(ana.get("bpm_max", 150)),
         ),
     )

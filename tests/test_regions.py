@@ -35,9 +35,19 @@ def test_regions_do_not_overlap_and_respect_max():
         assert a.end_s <= b.start_s
 
 
-def test_one_shots_are_detected():
+def test_regions_are_whole_bars_of_at_least_two_seconds():
+    y = np.concatenate([synth.rain(15)[0], synth.crackle_drone(15)[0], synth.sweep(10)[0]])[None]
+    regions = find_regions(y, synth.SR, max_regions=4)
+    assert regions
+    for r in regions:
+        assert r.type in {"loop", "gesture"}
+        assert r.duration_s >= 2.0
+        assert r.grid.beats % 4 == 0 and float(r.grid.bpm).is_integer()
+        assert abs(r.duration_s - r.grid.beats * 60 / r.grid.bpm) < 1e-6
+
+
+def test_a_lone_hit_is_not_kept_as_a_phrase():
     y = np.zeros(int(6 * synth.SR), dtype=np.float32)
     hit = synth.crackle_drone(1.0)[0] * np.exp(-np.arange(synth.SR) / 4000)
     y[synth.SR * 2 : synth.SR * 3] = hit * 3
-    regions = find_regions(y[None], synth.SR)
-    assert any(r.type == "one_shot" and 1.8 < r.start_s < 2.2 for r in regions)
+    assert all(r.duration_s >= 2.0 for r in find_regions(y[None], synth.SR))

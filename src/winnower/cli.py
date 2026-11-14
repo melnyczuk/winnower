@@ -11,6 +11,7 @@ from collections.abc import Callable, Iterable, Iterator
 import requests
 
 from . import index
+from .analysis.tonal import compatible
 from .config import Settings, load_env_file, load_settings
 from .pipeline import harvest
 from .sources.base import DailyQuotaExceeded, SourceItem
@@ -61,22 +62,46 @@ def _reindex(args: argparse.Namespace, store: Store, settings: Settings) -> int:
     return 0
 
 
+def bpm_range(text: str) -> tuple[float, float]:
+    """``96`` or ``90-110``."""
+    lo, _, hi = text.partition("-")
+    try:
+        return float(lo), float(hi or lo)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a tempo or range: {text}") from None
+
+
+def _camelots(args: argparse.Namespace) -> set[str] | None:
+    codes = set(args.camelot or [])
+    if not codes:
+        return None
+    return set().union(*map(compatible, codes)) if args.compatible else codes
+
+
 def select(rows: Iterable[dict], args: argparse.Namespace) -> list[dict]:
     """Rows matching the ``list`` filters, best first."""
+    camelots = _camelots(args)
     tests = [
         lambda r: (r["interest"] or 0) >= args.min_interest,
         lambda r: not args.type or r["type"] == args.type,
         lambda r: not args.licence or r["licence"] in args.licence,
         lambda r: not args.commercial or r["licence_decision"] == "allow",
+        lambda r: not args.key or r.get("key") in args.key,
+        lambda r: camelots is None or r.get("camelot") in camelots,
+        lambda r: not args.bpm or args.bpm[0] <= (r.get("bpm") or -1) <= args.bpm[1],
+        lambda r: (r["duration_s"] or 0) >= args.min_length,
+        lambda r: (r.get("seam") or 0) >= args.min_seam,
     ]
     kept = (r for r in rows if all(t(r) for t in tests))
     return sorted(kept, key=lambda r: r["rank"] or 0, reverse=True)
 
 
 def _row_text(r: dict, store: Store) -> str:
+    key = f"{r.get('camelot') or '':3s} {r.get('key') or '-':4s}"
+    tempo = f"{r['bpm']:3d}bpm {r['bars']}bar" if r.get("bpm") else "-".ljust(11)
     return (
-        f"{r['rank']:.2f}  {r['type']:12s} {r['duration_s']:6.1f}s  "
-        f"{r['licence'] or '-':13s} {store.uri(r['file'])}  {r['title'] or ''}"
+        f"{r['rank']:.2f}  {r['type']:8s} {key} {tempo:11s} {r['duration_s']:5.1f}s  "
+        f"{r['licence'] or '-':13s} {store.uri(r['file'])}"
     )
 
 
@@ -110,7 +135,15 @@ def parser(sources: Iterable[Source] = SOURCES) -> argparse.ArgumentParser:
 
     ls = sub.add_parser("list", help="list indexed samples")
     ls.add_argument("--min-interest", type=float, default=0.0)
-    ls.add_argument("--type", choices=["texture_loop", "texture", "gesture", "one_shot"])
+    ls.add_argument("--type", choices=["loop", "gesture"])
+    ls.add_argument("--min-seam", type=float, default=0.0, help="0..1: how invisible the wrap is")
+    ls.add_argument("--key", action="append", help="key such as Am or F# (repeatable)")
+    ls.add_argument("--camelot", action="append", help="Camelot code such as 8A (repeatable)")
+    ls.add_argument(
+        "--compatible", action="store_true", help="with --camelot: also harmonic neighbours"
+    )
+    ls.add_argument("--bpm", type=bpm_range, help="tempo or range, e.g. 96 or 90-110")
+    ls.add_argument("--min-length", type=float, default=0.0, help="seconds")
     ls.add_argument("--licence", action="append", help="licence id to include (repeatable)")
     ls.add_argument("--commercial", action="store_true", help="only allow-listed licences")
     ls.add_argument("--json", action="store_true")
