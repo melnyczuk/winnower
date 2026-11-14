@@ -71,3 +71,11 @@ class FakeSession:
         else:
             page = self.pages[len(self.calls) - 1]
         return page if isinstance(page, FakeResponse) else FakeResponse(page)
+
+    def head(self, url, allow_redirects=False, timeout=None):
+        """Audio unless the URL is routed to an HTML page (dict routes only)."""
+        self.calls.append((url, "HEAD", None))
+        page = self.pages.get(url) if isinstance(self.pages, dict) else None
+        if isinstance(page, str) and "<html" in page.lower():
+            return FakeResponse("", headers={"Content-Type": "text/html; charset=utf-8"})
+        return FakeResponse("", headers={"Content-Type": "audio/wav"})

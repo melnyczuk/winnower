@@ -61,7 +61,7 @@ class PageParser(HTMLParser):
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.audio: list[tuple[str, str | None]] = []  # (href, link text)
+        self.audio: list[tuple[str, str | None, str]] = []  # (href, link text, tag)
         self.links: list[str] = []
         self.title = ""
         self.author: str | None = None
@@ -80,7 +80,7 @@ class PageParser(HTMLParser):
         if tag == "title":
             self._in = "title"
         elif tag in ("audio", "source") and a.get("src"):
-            self.audio.append((a["src"], None))
+            self.audio.append((a["src"], None, tag))
         elif tag == "a" and a.get("href"):
             href = a["href"]
             if "license" in rel and not self.rel_licence:
@@ -114,7 +114,7 @@ class PageParser(HTMLParser):
             self.jsonld_licence = self.jsonld_licence or found
         elif tag == "a" and self._anchor:
             text = " ".join("".join(self._text).split()) or None
-            self.audio.append((self._anchor, text))
+            self.audio.append((self._anchor, text, "a"))
             self._anchor = None
 
     def handle_data(self, data):
@@ -187,6 +187,17 @@ class WebPages:
             self._robots[root] = rp
         return rp.can_fetch(USER_AGENT, url)
 
+    def _looks_like_audio(self, url: str) -> bool:
+        """A HEAD check for plain links: ``/wiki/File:Rain.wav`` is an HTML page."""
+        self._limit(url)
+        try:
+            r = self.http.head(url, allow_redirects=True, timeout=30)
+        except requests.RequestException:
+            return True  # let the download decide
+        if r.status_code >= 400:
+            return r.status_code in (405, 501)  # HEAD not supported
+        return "html" not in r.headers.get("Content-Type", "")
+
     def _page(self, url: str) -> PageParser | None:
         self._limit(url)
         r = self.http.get(url, timeout=30)
@@ -228,6 +239,8 @@ class WebPages:
                 key = urlparse(item.audio_url)._replace(query="", fragment="").geturl()
                 if key in seen_audio or not self.allowed(item.audio_url):
                     continue
+                if item.raw["tag"] == "a" and not self._looks_like_audio(item.audio_url):
+                    continue
                 seen_audio.add(key)
                 yield item
                 yielded += 1
@@ -246,7 +259,7 @@ class WebPages:
         licence = self.licence or (urljoin(page_url, found) if found else None)
         how = "cli" if self.licence else how
         page_title = " ".join(page.title.split()) or None
-        for href, text in page.audio:
+        for href, text, tag in page.audio:
             audio = urldefrag(urljoin(page_url, href))[0]
             if urlparse(audio).scheme not in ("http", "https") or _ext(audio) not in AUDIO_EXTS:
                 continue
@@ -258,7 +271,7 @@ class WebPages:
                 page_url=page_url,
                 licence_raw=licence,
                 audio_url=audio,
-                raw={"page_title": page_title, "licence_source": how},
+                raw={"page_title": page_title, "licence_source": how, "tag": tag},
                 analysed_from="original",
                 lossy=_ext(audio) in LOSSY_EXTS,
                 allow_unknown=self.allow_unknown,

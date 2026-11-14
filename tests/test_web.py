@@ -69,11 +69,15 @@ def test_seed_page_audio_links_with_robots_and_dedup():
     assert pylons.title == "Pylons (WAV)" and gravel.title == "01-gravel"
     assert gravel.author == "Field Unit" and gravel.page_url == RELEASE
     assert all(normalise(i.licence_raw) == "CC-BY-SA-4.0" for i in items)
-    assert gravel.raw == {"page_title": "Dust Tapes — Rust Belt Netlabel", "licence_source": "rel"}
+    assert gravel.raw == {
+        "page_title": "Dust Tapes — Rust Belt Netlabel",
+        "licence_source": "rel",
+        "tag": "audio",
+    }
     assert gravel.lossy is True and pylons.lossy is False and pylons.analysed_from == "original"
     assert len(gravel.provider_id) == 16 and gravel.provider == "web"
     # depth 0: no other pages fetched
-    pages = [c[0] for c in session.calls if not c[0].endswith("robots.txt")]
+    pages = [c[0] for c in session.calls if c[1] != "HEAD" and not c[0].endswith("robots.txt")]
     assert pages == [RELEASE]
 
 
@@ -131,3 +135,17 @@ def test_robots_forbidden_means_disallow_all():
     session = FakeSession({f"{SITE}/robots.txt": FakeResponse("", status=403)})
     w = WebPages(session=session, limiter=no_wait)
     assert not w.allowed(RELEASE)
+
+
+def test_plain_links_that_are_html_pages_are_skipped():
+    wiki = f"{SITE}/wiki/File:Rain.wav"
+    seed = f"{SITE}/wiki/Rain"
+    html = '<html><a rel="license" href="https://creativecommons.org/licenses/by/4.0/">x</a>'
+    session = FakeSession(
+        {
+            seed: html + f'<a href="{wiki}">File</a><a href="/w/rain.wav">Rain</a></html>',
+            wiki: "<html><body>a wiki page</body></html>",
+        }
+    )
+    w = WebPages(session=session, limiter=no_wait)
+    assert [i.audio_url for i in w.search([seed])] == [f"{SITE}/w/rain.wav"]
