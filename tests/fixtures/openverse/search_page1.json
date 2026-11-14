@@ -1,0 +1,89 @@
+{
+ "result_count": 4,
+ "page_count": 2,
+ "page_size": 3,
+ "page": 1,
+ "results": [
+  {
+   "id": "8624ba61-57f1-4f98-8a85-ece206c319cf",
+   "title": "Wish You Were Here",
+   "indexed_on": "2022-12-06T06:54:25Z",
+   "foreign_landing_url": "https://www.jamendo.com/track/1214935",
+   "url": "https://mp3d.jamendo.com/download/track/1214935/mp32",
+   "creator": "The.madpix.project",
+   "creator_url": "https://www.jamendo.com/artist/441585/the.madpix.project",
+   "license": "by-nc-sa",
+   "license_version": "3.0",
+   "license_url": "https://creativecommons.org/licenses/by-nc-sa/3.0/",
+   "provider": "jamendo",
+   "source": "jamendo",
+   "category": "music",
+   "genres": [
+    "dance",
+    "electronic"
+   ],
+   "filesize": 7139840,
+   "filetype": "mp3",
+   "tags": [
+    {
+     "accuracy": null,
+     "name": "vocal",
+     "unstable__provider": "jamendo"
+    },
+    {
+     "accuracy": null,
+     "name": "guitar",
+     "unstable__provider": "jamendo"
+    }
+   ],
+   "alt_files": null,
+   "mature": false,
+   "duration": 270000,
+   "bit_rate": 128000,
+   "sample_rate": 44100,
+   "detail_url": "https://api.openverse.org/v1/audio/8624ba61-57f1-4f98-8a85-ece206c319cf/"
+  },
+  {
+   "id": "0b5f0a7e-0000-4000-8000-000000000001",
+   "title": "rain loop",
+   "foreign_landing_url": "https://freesound.org/people/x/sounds/1/",
+   "url": "https://cdn.freesound.org/previews/0/1_1-hq.mp3",
+   "creator": "x",
+   "license": "cc0",
+   "license_version": "1.0",
+   "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+   "provider": "freesound",
+   "source": "freesound",
+   "filetype": "mp3",
+   "tags": [
+    {
+     "name": "rain"
+    }
+   ],
+   "duration": 12000
+  },
+  {
+   "id": "36537842-b067-4ca0-ad67-e00ff2e06b2e",
+   "title": "File:Rain on a tin roof.wav",
+   "foreign_landing_url": "https://commons.wikimedia.org/w/index.php?curid=3536953",
+   "url": "https://upload.wikimedia.org/wikipedia/commons/2/24/Rain_on_a_tin_roof.wav",
+   "creator": "Someone",
+   "license": "by-sa",
+   "license_version": "2.0",
+   "license_url": null,
+   "provider": "wikimedia_audio",
+   "source": "wikimedia_audio",
+   "category": "sound_effect",
+   "filetype": "wav",
+   "tags": [
+    {
+     "name": "rain"
+    },
+    {
+     "name": "roof"
+    }
+   ],
+   "duration": 42500
+  }
+ ]
+}

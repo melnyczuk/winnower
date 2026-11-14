@@ -1,0 +1,31 @@
+{
+ "result_count": 4,
+ "page_count": 2,
+ "page_size": 3,
+ "page": 2,
+ "results": [
+  {
+   "id": "5a9c2f00-0000-4000-8000-000000000002",
+   "title": "Thunder",
+   "foreign_landing_url": "https://commons.wikimedia.org/w/index.php?curid=3536953",
+   "url": "https://example.org/thunder.flac",
+   "creator": "Someone",
+   "license": "pdm",
+   "license_version": "1.0",
+   "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+   "provider": "wikimedia_audio",
+   "source": "wikimedia_audio",
+   "category": "sound_effect",
+   "filetype": "flac",
+   "tags": [
+    {
+     "name": "rain"
+    },
+    {
+     "name": "roof"
+    }
+   ],
+   "duration": null
+  }
+ ]
+}
