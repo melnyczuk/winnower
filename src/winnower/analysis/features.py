@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import subprocess
+import tempfile
 from dataclasses import dataclass
 
 import librosa
@@ -27,6 +28,8 @@ def _ffmpeg_input(data: bytes | str) -> tuple[list[str], bytes | None]:
 
 
 def _ffprobe_duration(data: bytes | str) -> float:
+    """ffprobe's duration. A pipe can't be seeked, so a headerless MP3 (common on the
+    Internet Archive) reads as N/A from stdin; those are probed from a temporary file."""
     args, stdin = _ffmpeg_input(data)
     out = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", *args[1:]],
@@ -34,7 +37,15 @@ def _ffprobe_duration(data: bytes | str) -> float:
         capture_output=True,
         check=True,
     )
-    return float(out.stdout.strip())
+    try:
+        return float(out.stdout.strip())
+    except ValueError:
+        if stdin is None:
+            raise
+    with tempfile.NamedTemporaryFile() as f:
+        f.write(stdin)
+        f.flush()
+        return _ffprobe_duration(f.name)
 
 
 def _ffmpeg_load(data: bytes | str, sr: int, offset: float, duration: float | None) -> np.ndarray:
