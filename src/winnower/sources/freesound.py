@@ -12,7 +12,7 @@ from collections.abc import Iterator
 
 import requests
 
-from .base import USER_AGENT, RateLimiter, SourceItem, download
+from .base import RateLimiter, SourceItem, download, user_agent
 
 API = "https://freesound.org/apiv2"
 FIELDS = "id,name,username,license,url,previews,tags,description,duration"
@@ -31,7 +31,7 @@ class Freesound:
             raise ValueError("Freesound needs an API token (FREESOUND_TOKEN)")
         self.token = token
         self.http = session or requests.Session()
-        self.http.headers.setdefault("User-Agent", USER_AGENT)
+        self.http.headers.setdefault("User-Agent", user_agent())
         self.limiter = limiter or RateLimiter(per_minute=60, per_day=2000)
 
     def _get(self, url: str, params: dict | None = None) -> requests.Response:

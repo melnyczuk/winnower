@@ -17,7 +17,7 @@ from typing import Any
 
 import requests
 
-USER_AGENT = os.environ.get("WINNOWER_USER_AGENT", "winnower/0.1 (+sample research tool)")
+DEFAULT_USER_AGENT = "winnower/0.1 (+sample research tool)"
 MAX_DOWNLOAD_BYTES = 200_000_000
 
 
@@ -87,7 +87,7 @@ class TooLarge(RuntimeError):
 
 def http_session() -> requests.Session:
     s = requests.Session()
-    s.headers["User-Agent"] = USER_AGENT
+    s.headers["User-Agent"] = user_agent()
     return s
 
 
@@ -106,6 +106,11 @@ def download(http, url: str, max_bytes: int = MAX_DOWNLOAD_BYTES) -> bytes:
             r.close()
             raise TooLarge(f"{url} is over the {max_bytes} byte cap")
     return bytes(buf)
+
+
+def user_agent() -> str:
+    """``WINNOWER_USER_AGENT`` if set (read at call time, so a .env file applies)."""
+    return os.environ.get("WINNOWER_USER_AGENT") or DEFAULT_USER_AGENT
 
 
 class _Text(HTMLParser):

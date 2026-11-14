@@ -30,7 +30,7 @@ from urllib.parse import urldefrag, urljoin, urlparse
 
 import requests
 
-from .base import USER_AGENT, RateLimiter, SourceItem, download, http_session
+from .base import RateLimiter, SourceItem, download, http_session, user_agent
 from .local import AUDIO_EXTS, LOSSY_EXTS
 
 log = logging.getLogger(__name__)
@@ -185,7 +185,7 @@ class WebPages:
             else:
                 rp.parse(r.text.splitlines())
             self._robots[root] = rp
-        return rp.can_fetch(USER_AGENT, url)
+        return rp.can_fetch(user_agent(), url)
 
     def _looks_like_audio(self, url: str) -> bool:
         """A HEAD check for plain links: ``/wiki/File:Rain.wav`` is an HTML page."""

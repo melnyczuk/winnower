@@ -11,7 +11,7 @@ from pathlib import Path
 import requests
 
 from . import index
-from .config import load_settings
+from .config import load_env_file, load_settings
 from .pipeline import harvest
 from .sources.base import DailyQuotaExceeded
 from .storage import Store
@@ -52,15 +52,19 @@ def _run(items, fetch, store: Store, settings, **kw) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="winnower", description=__doc__)
     ap.add_argument("--config", help="path to winnower.toml (default ./winnower.toml if present)")
+    ap.add_argument(
+        "--env-file", help="KEY=value file of env vars, e.g. API keys (default ./.env if present)"
+    )
     ap.add_argument("--root", help="override storage_root (local path or s3:// URI)")
     ap.add_argument("-v", "--verbose", action="store_true")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     h = sub.add_parser("harvest", help="analyse audio from a source and keep good regions")
     hs = h.add_subparsers(dest="source", required=True)
-    hf = hs.add_parser("freesound", help="search Freesound (needs FREESOUND_TOKEN)")
+    hf = hs.add_parser("freesound", help="search Freesound (needs an API key)")
     hf.add_argument("query")
     _common(hf)
+    hf.add_argument("--token", help="Freesound API key (default: FREESOUND_TOKEN)")
     hl = hs.add_parser("local", help="files or folders on disk, e.g. albums you've downloaded")
     hl.add_argument("paths", nargs="+", type=Path)
     hl.add_argument(
@@ -72,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     ho = hs.add_parser("openverse", help="search Openverse (no key; OPENVERSE_TOKEN optional)")
     ho.add_argument("query")
     _common(ho)
+    ho.add_argument("--token", help="Openverse token for higher limits (default: OPENVERSE_TOKEN)")
     ho.add_argument("--license", dest="licence", help="Openverse licence codes, e.g. by,cc0")
     ho.add_argument(
         "--license-type", dest="licence_type", help="commercial, modification, all-cc, ..."
@@ -120,6 +125,11 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO if args.verbose else logging.WARNING, format="%(message)s"
     )
+    try:
+        load_env_file(args.env_file)
+    except FileNotFoundError as e:
+        print(f"No such env file: {e}", file=sys.stderr)
+        return 2
     settings = load_settings(args.config)
     store = Store(args.root or settings.storage_root)
 
@@ -152,10 +162,15 @@ def _harvest(args, store: Store, settings) -> int:
     if args.source == "freesound":
         from .sources.freesound import Freesound
 
-        if not settings.freesound_token:
-            print("Set FREESOUND_TOKEN or freesound_token in winnower.toml", file=sys.stderr)
+        token = args.token or settings.freesound_token
+        if not token:
+            print(
+                "Give --token, or set FREESOUND_TOKEN (environment or .env) "
+                "or freesound_token in winnower.toml",
+                file=sys.stderr,
+            )
             return 2
-        fs = Freesound(settings.freesound_token)
+        fs = Freesound(token)
         items = fs.search(args.query, limit=args.limit, max_duration=args.max_duration)
         return _run(items, fs.fetch_audio, store, settings)
     if args.source == "local":
@@ -175,7 +190,9 @@ def _harvest(args, store: Store, settings) -> int:
     if args.source == "openverse":
         from .sources.openverse import Openverse
 
-        ov = Openverse(settings.openverse_token, include_freesound=args.include_freesound)
+        ov = Openverse(
+            args.token or settings.openverse_token, include_freesound=args.include_freesound
+        )
         items = ov.search(
             args.query,
             limit=args.limit,

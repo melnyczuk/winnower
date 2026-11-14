@@ -1,4 +1,7 @@
-"""Settings from winnower.toml, overridable with WINNOWER_* / FREESOUND_TOKEN / OPENVERSE_TOKEN."""
+"""Settings from winnower.toml, overridable with env vars (or a .env file).
+
+Precedence, highest first: CLI flags, environment variables, ``.env``, ``winnower.toml``.
+"""
 
 from __future__ import annotations
 
@@ -33,6 +36,32 @@ class Settings:
     openverse_token: str | None = None
     licences: LicencePolicy = field(default_factory=LicencePolicy)
     analysis: AnalysisSettings = field(default_factory=AnalysisSettings)
+
+
+def load_env_file(path: str | os.PathLike | None = None) -> dict[str, str]:
+    """Load ``KEY=value`` lines from a .env file (default ./.env if present) into the
+    environment. Variables already set in the environment win. Returns what was read."""
+    candidate = Path(path) if path else Path(".env")
+    if not candidate.exists():
+        if path:
+            raise FileNotFoundError(candidate)
+        return {}
+    values = {}
+    for line in candidate.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, sep, value = line.removeprefix("export ").partition("=")
+        if not sep:
+            continue
+        key, value = key.strip(), value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            value = value[1:-1]
+        else:
+            value = value.split(" #", 1)[0].strip()  # trailing comment
+        values[key] = value
+        os.environ.setdefault(key, value)
+    return values
 
 
 def load_settings(path: str | os.PathLike | None = None) -> Settings:

@@ -37,7 +37,7 @@ Background and design decisions: the research report "Sample crawler stack" (Cla
 uv sync                          # add --extra index for LanceDB, --extra s3 for buckets
 . .venv/bin/activate             # or prefix commands with `uv run`
 cp winnower.example.toml winnower.toml
-export FREESOUND_TOKEN=...       # https://freesound.org/apiv2/apply
+echo 'FREESOUND_TOKEN=...' >> .env   # https://freesound.org/apiv2/apply
 ```
 
 On a Raspberry Pi, use 64-bit Raspberry Pi OS; every Python dependency has Linux ARM wheels.
@@ -65,6 +65,20 @@ winnower reindex                             # rebuild index from sidecars
 Every harvest takes `--limit` (source files to process) and `--max-duration` (seconds).
 Re-running a harvest skips files already processed. If a search fails or a daily quota
 runs out, the run stops with a message and keeps what it already harvested.
+
+### Keys
+
+Keys can come from, highest priority first:
+
+1. a flag: `winnower harvest freesound "rain" --token ...` (also `harvest openverse --token`)
+2. an environment variable: `FREESOUND_TOKEN`, `OPENVERSE_TOKEN`
+3. a `.env` file of `KEY=value` lines: `./.env` is read if present, or name one with
+   `winnower --env-file ~/keys.env ...`. It's git-ignored. Variables already set in the
+   environment win over the file.
+4. `winnower.toml` (`freesound_token`, `openverse_token`)
+
+Any `WINNOWER_*` variable (`WINNOWER_USER_AGENT`, `WINNOWER_STORAGE_ROOT`,
+`WINNOWER_MIN_INTEREST`) can go in `.env` too.
 
 ## Sources
 
