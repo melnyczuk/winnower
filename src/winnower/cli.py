@@ -100,6 +100,12 @@ def main(argv: list[str] | None = None) -> int:
     _common(hm, unlicensed=True)
     hm.set_defaults(limit=None)  # a manifest is a deliberate list: all rows by default
     hm.add_argument("--provider", help="provider name (default: the manifest's file name)")
+    hwb = hs.add_parser("web", help="audio linked from web pages (respects robots.txt)")
+    hwb.add_argument("urls", nargs="+", help="seed page URLs")
+    _common(hwb, unlicensed=True)
+    hwb.add_argument("--depth", type=int, default=0, help="follow same-host links this deep")
+    hwb.add_argument("--max-pages", type=int, default=50, help="stop after this many pages")
+    hwb.add_argument("--licence", help="licence URL or id for everything found (skips detection)")
 
     sub.add_parser("reindex", help="rebuild the index from sidecars")
 
@@ -221,6 +227,17 @@ def _harvest(args, store: Store, settings) -> int:
         m = Manifest(args.path, provider=args.provider, allow_unknown=args.include_unlicensed)
         items = m.search(limit=args.limit, max_duration=args.max_duration)
         return _run(items, m.fetch_audio, store, settings)
+    if args.source == "web":
+        from .sources.web import WebPages
+
+        web = WebPages(
+            depth=args.depth,
+            max_pages=args.max_pages,
+            allow_unknown=args.include_unlicensed,
+            licence=args.licence,
+        )
+        items = web.search(args.urls, limit=args.limit, max_duration=args.max_duration)
+        return _run(items, web.fetch_audio, store, settings)
     raise AssertionError(args.source)
 
 
