@@ -95,6 +95,11 @@ def main(argv: list[str] | None = None) -> int:
     hc.add_argument("query", nargs="?", help="text to search for")
     _common(hc)
     hc.add_argument("--tags", help="comma-separated ccMixter tags, e.g. ambient,field_recording")
+    hm = hs.add_parser("manifest", help="a CSV/JSONL list of files or URLs (datasets)")
+    hm.add_argument("path", type=Path)
+    _common(hm, unlicensed=True)
+    hm.set_defaults(limit=None)  # a manifest is a deliberate list: all rows by default
+    hm.add_argument("--provider", help="provider name (default: the manifest's file name)")
 
     sub.add_parser("reindex", help="rebuild the index from sidecars")
 
@@ -207,6 +212,15 @@ def _harvest(args, store: Store, settings) -> int:
             args.query, limit=args.limit, max_duration=args.max_duration, tags=args.tags
         )
         return _run(items, cc.fetch_audio, store, settings)
+    if args.source == "manifest":
+        from .sources.manifest import Manifest
+
+        if not args.path.exists():
+            print(f"No such manifest: {args.path}", file=sys.stderr)
+            return 2
+        m = Manifest(args.path, provider=args.provider, allow_unknown=args.include_unlicensed)
+        items = m.search(limit=args.limit, max_duration=args.max_duration)
+        return _run(items, m.fetch_audio, store, settings)
     raise AssertionError(args.source)
 
 
