@@ -31,8 +31,8 @@ Background and design decisions: the research report "Sample crawler stack" (Cla
 ## Install
 
 ```sh
-python -m venv .venv && . .venv/bin/activate
-pip install -e ".[dev]"          # add ,index for LanceDB, ,s3 for buckets
+uv sync                          # add --extra index for LanceDB, --extra s3 for buckets
+. .venv/bin/activate             # or prefix commands with `uv run`
 cp winnower.example.toml winnower.toml
 export FREESOUND_TOKEN=...       # https://freesound.org/apiv2/apply
 ```
