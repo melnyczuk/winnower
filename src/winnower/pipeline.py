@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import io
+import itertools
 import logging
+from collections.abc import Callable, Iterable, Iterator
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import reduce
+from typing import Literal
 
 import librosa
 import numpy as np
@@ -87,37 +92,43 @@ def process_audio(
     (each chunk can yield up to ``max_regions_per_file``), so a 70-minute album side or DJ
     mix needs no more memory than a 10-minute track.
     """
-    sr = settings.analysis.sample_rate
-    chunk = settings.analysis.chunk_s
     total = audio_duration(audio)
     # Lossy sources gain nothing from 24-bit; keep 24-bit for lossless ones.
     subtype = "PCM_16" if lossy or analysed_from == "preview" else "PCM_24"
-    out = []
-    offset = 0.0
-    while offset < total - 1e-3:
-        dur = min(chunk, total - offset)
-        if dur < 2.0 and offset > 0:
-            break
-        y, sr = load_audio(audio, sr, offset=offset, duration=dur)
-        regions = find_regions(
-            y,
-            sr,
-            max_regions=settings.analysis.max_regions_per_file,
-            min_interest=settings.analysis.min_interest,
+    a = settings.analysis
+    loaded = (  # lazy: one chunk in memory at a time
+        (offset, *load_audio(audio, a.sample_rate, offset=offset, duration=dur))
+        for offset, dur in chunks(total, a.chunk_s)
+    )
+    return [
+        _write_region(store, _prepare(y, sr, r, offset, subtype, source, licence, analysed_from))
+        for offset, y, sr in loaded
+        for r in find_regions(
+            y, sr, max_regions=a.max_regions_per_file, min_interest=a.min_interest
         )
-        for r in regions:
-            out.append(
-                _write_region(y, sr, r, offset, subtype, store, source, licence, analysed_from)
-            )
-        offset += chunk
-    return out
+    ]
 
 
-def _write_region(y, sr, r: Region, offset, subtype, store, source, licence, analysed_from) -> dict:
+def chunks(total: float, size: float) -> Iterator[tuple[float, float]]:
+    """``(offset, duration)`` windows covering ``total`` seconds in steps of ``size``. A
+    trailing sliver under 2 s is dropped (too short to analyse)."""
+    offsets = itertools.takewhile(lambda o: o < total - 1e-3, itertools.count(0.0, size))
+    windows = ((o, min(size, total - o)) for o in offsets)
+    return (w for w in windows if w[0] == 0 or w[1] >= 2.0)
+
+
+@dataclass(frozen=True)
+class _Region:
+    """A cut region ready to write: its FLAC bytes and sidecar."""
+
+    flac: bytes
+    sidecar: dict
+
+
+def _prepare(y, sr, r: Region, offset, subtype, source, licence, analysed_from) -> _Region:
     seg = _cut(y, sr, r)
     data = _flac(seg, sr, subtype)
     sid = hashlib.sha256(data).hexdigest()[:24]
-    store.write_bytes(sample_key(sid, "flac"), data)
     loop = r.loop
     sidecar = {
         "id": sid,
@@ -153,8 +164,14 @@ def _write_region(y, sr, r: Region, offset, subtype, store, source, licence, ana
         "caption": None,
         "pipeline": {"version": PIPELINE_VERSION, "created_at": _now()},
     }
-    store.write_json(sample_key(sid, "json"), sidecar)
-    return sidecar
+    return _Region(data, sidecar)
+
+
+def _write_region(store: Store, region: _Region) -> dict:
+    sid = region.sidecar["id"]
+    store.write_bytes(sample_key(sid, "flac"), region.flac)
+    store.write_json(sample_key(sid, "json"), region.sidecar)
+    return region.sidecar
 
 
 LOCAL_UNKNOWN = LicenceInfo(
@@ -173,63 +190,101 @@ def _unknown(item: SourceItem, url: str | None) -> LicenceInfo:
     )
 
 
+def licence_for(item: SourceItem, settings: Settings) -> LicenceInfo:
+    """The gate's decision for one item. Items without a recognisable licence are denied
+    unless ``item.allow_unknown`` is set, in which case they're kept and flagged
+    ``web-unknown`` (``local-unknown`` for local files). Recognised denials (ND and so on)
+    are never overridden."""
+    lic = decide(item.licence_raw, settings.licences)
+    return _unknown(item, lic.url) if lic.id is None and item.allow_unknown else lic
+
+
+def lossiness(item: SourceItem, origin: str, lossy: Callable | None = None) -> bool:
+    """An explicit ``lossy(item)``, else the item's own ``lossy``, else previews are."""
+    if lossy:
+        return lossy(item)
+    return item.lossy if item.lossy is not None else origin == "preview"
+
+
+Status = Literal["skipped_existing", "denied", "error", "no_regions", "done"]
+
+
+@dataclass(frozen=True)
+class Outcome:
+    status: Status
+    samples: int = 0
+
+
+def harvest_one(
+    item: SourceItem,
+    fetch,
+    store: Store,
+    settings: Settings,
+    analysed_from: str | None = None,
+    lossy: Callable | None = None,
+) -> Outcome:
+    """Gate, analyse and store one item, recording it under ``sources/``."""
+    meta_key = source_key(item.provider, item.provider_id)
+    if store.exists(meta_key):
+        return Outcome("skipped_existing")
+    lic = licence_for(item, settings)
+    source = _source_record(item, lic)
+    if lic.decision == "deny":
+        store.write_json(meta_key, source | {"status": "denied", "reason": lic.reason})
+        return Outcome("denied")
+    origin = analysed_from or item.analysed_from
+    try:
+        samples = process_audio(
+            fetch(item), store, settings, source, lic, origin, lossiness(item, origin, lossy)
+        )
+    except Exception as e:  # one bad file must not stop a harvest
+        log.warning("failed %s/%s: %s", item.provider, item.provider_id, e)
+        return Outcome("error")
+    store.write_json(
+        meta_key,
+        source | {"status": "done", "samples": [s["id"] for s in samples], "raw": item.raw},
+    )
+    return Outcome("done" if samples else "no_regions", len(samples))
+
+
+COUNTS = ("seen", "denied", "skipped_existing", "no_regions", "samples", "errors")
+_COUNTER: dict[Status, str] = {
+    "skipped_existing": "skipped_existing",
+    "denied": "denied",
+    "error": "errors",
+    "no_regions": "no_regions",
+}
+
+
+def _increments(o: Outcome) -> dict[str, int]:
+    counter = _COUNTER.get(o.status)
+    return {"seen": 1, "samples": o.samples} | ({counter: 1} if counter else {})
+
+
+def _add(counts: dict[str, int], inc: dict[str, int]) -> dict[str, int]:
+    return {k: v + inc.get(k, 0) for k, v in counts.items()}
+
+
+def tally(outcomes: Iterable[Outcome]) -> dict[str, int]:
+    """Fold outcomes into ``seen``/``denied``/``skipped_existing``/... counts."""
+    return reduce(_add, map(_increments, outcomes), dict.fromkeys(COUNTS, 0))
+
+
 def harvest(
-    items, fetch, store: Store, settings: Settings, analysed_from: str | None = None, lossy=None
-) -> dict:
+    items: Iterable[SourceItem],
+    fetch,
+    store: Store,
+    settings: Settings,
+    analysed_from: str | None = None,
+    lossy: Callable | None = None,
+) -> dict[str, int]:
     """Run a stream of SourceItems through the pipeline. Returns counts.
 
     ``fetch(item)`` returns bytes or a local path. ``analysed_from`` overrides each item's
-    own value. ``lossy(item)`` says whether the source is lossy; without it, the item's
-    ``lossy`` is used, else previews are assumed lossy and originals not.
-
-    Items without a recognisable licence are denied unless ``item.allow_unknown`` is set,
-    in which case they're kept and flagged ``web-unknown`` (``local-unknown`` for local
-    files). Recognised denials (ND and so on) are never overridden.
+    own value; ``lossy(item)`` overrides each item's ``lossy`` (see :func:`lossiness`).
+    Items are processed one at a time as the stream yields them.
     """
-    counts = {
-        "seen": 0,
-        "denied": 0,
-        "skipped_existing": 0,
-        "no_regions": 0,
-        "samples": 0,
-        "errors": 0,
-    }
-    for item in items:
-        counts["seen"] += 1
-        meta_key = source_key(item.provider, item.provider_id)
-        if store.exists(meta_key):
-            counts["skipped_existing"] += 1
-            continue
-        lic = decide(item.licence_raw, settings.licences)
-        if lic.id is None and item.allow_unknown:
-            lic = _unknown(item, lic.url)
-        source = _source_record(item, lic)
-        if lic.decision == "deny":
-            counts["denied"] += 1
-            store.write_json(meta_key, source | {"status": "denied", "reason": lic.reason})
-            continue
-        origin = analysed_from or item.analysed_from
-        if lossy:
-            is_lossy = lossy(item)
-        elif item.lossy is not None:
-            is_lossy = item.lossy
-        else:
-            is_lossy = origin == "preview"
-        try:
-            samples = process_audio(
-                fetch(item), store, settings, source, lic, origin, lossy=is_lossy
-            )
-        except Exception as e:  # one bad file must not stop a harvest
-            log.warning("failed %s/%s: %s", item.provider, item.provider_id, e)
-            counts["errors"] += 1
-            continue
-        store.write_json(
-            meta_key,
-            source | {"status": "done", "samples": [s["id"] for s in samples], "raw": item.raw},
-        )
-        counts["samples"] += len(samples)
-        counts["no_regions"] += 0 if samples else 1
-    return counts
+    return tally(harvest_one(it, fetch, store, settings, analysed_from, lossy) for it in items)
 
 
 def _source_record(item: SourceItem, lic: LicenceInfo) -> dict:

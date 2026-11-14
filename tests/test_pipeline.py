@@ -191,3 +191,50 @@ def test_per_item_analysed_from_and_lossy_reach_the_sidecar(tmp_path):
     assert sidecars[0]["audio"]["subtype"] == "PCM_24"
     assert sidecars[0]["licence"]["id"] == "CC-BY-2.5"
     assert sidecars[0]["licence"]["decision"] == "allow"
+
+
+def test_chunks_cover_the_file_and_drop_a_short_tail():
+    from winnower.pipeline import chunks
+
+    assert list(chunks(25.0, 10.0)) == [(0.0, 10.0), (10.0, 10.0), (20.0, 5.0)]
+    assert list(chunks(21.0, 10.0)) == [(0.0, 10.0), (10.0, 10.0)]  # 1 s tail dropped
+    assert list(chunks(1.5, 10.0)) == [(0.0, 1.5)]  # a short file is still analysed
+    assert list(chunks(0.0, 10.0)) == []
+
+
+def test_tally_folds_outcomes_into_counts():
+    from winnower.pipeline import Outcome, tally
+
+    outcomes = [
+        Outcome("done", 3),
+        Outcome("no_regions"),
+        Outcome("denied"),
+        Outcome("skipped_existing"),
+        Outcome("error"),
+        Outcome("done", 2),
+    ]
+    assert tally(outcomes) == {
+        "seen": 6,
+        "denied": 1,
+        "skipped_existing": 1,
+        "no_regions": 1,
+        "samples": 5,
+        "errors": 1,
+    }
+    assert tally([]) == dict.fromkeys(tally([]), 0) and tally(iter(outcomes))["seen"] == 6
+
+
+def test_licence_for_and_lossiness_are_pure_decisions():
+    from winnower.pipeline import LOCAL_UNKNOWN, licence_for, lossiness
+
+    it = item("x", None)
+    assert licence_for(it, SETTINGS).decision == "deny"
+    it.allow_unknown = True
+    assert licence_for(it, SETTINGS).id == "web-unknown"
+    it.provider = "local"
+    assert licence_for(it, SETTINGS) is LOCAL_UNKNOWN
+
+    assert lossiness(it, "preview") is True and lossiness(it, "original") is False
+    it.lossy = True
+    assert lossiness(it, "original") is True
+    assert lossiness(it, "original", lossy=lambda _: False) is False
