@@ -91,6 +91,10 @@ def main(argv: list[str] | None = None) -> int:
     hn = hs.add_parser("nasa", help="search the NASA Image and Video Library (no key)")
     hn.add_argument("query")
     _common(hn)
+    hc = hs.add_parser("ccmixter", help="search ccMixter (no key)")
+    hc.add_argument("query", nargs="?", help="text to search for")
+    _common(hc)
+    hc.add_argument("--tags", help="comma-separated ccMixter tags, e.g. ambient,field_recording")
 
     sub.add_parser("reindex", help="rebuild the index from sidecars")
 
@@ -192,6 +196,17 @@ def _harvest(args, store: Store, settings) -> int:
         nasa = NasaMedia()
         items = nasa.search(args.query, limit=args.limit, max_duration=args.max_duration)
         return _run(items, nasa.fetch_audio, store, settings)
+    if args.source == "ccmixter":
+        from .sources.ccmixter import CcMixter
+
+        if not args.query and not args.tags:
+            print("Give a search query or --tags", file=sys.stderr)
+            return 2
+        cc = CcMixter()
+        items = cc.search(
+            args.query, limit=args.limit, max_duration=args.max_duration, tags=args.tags
+        )
+        return _run(items, cc.fetch_audio, store, settings)
     raise AssertionError(args.source)
 
 

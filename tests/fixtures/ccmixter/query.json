@@ -1,0 +1,161 @@
+[
+ {
+  "upload_id": 71335,
+  "upload_name": "SQUARE PEGS in CIRCLES",
+  "upload_extra": {
+   "usertags": "rock,ballad,female_vocals,chill,downtempo,ambient",
+   "ccud": "media,remix,bpm_085_090,ccplus",
+   "systags": "non_commercial,audio,mp3,48k,stereo,VBR,audio,flac,48k,stereo,VBR",
+   "bpm": 88,
+   "relative_dir": "content/JeffSpeed68",
+   "featuring": "SO SHA",
+   "ccplus": true,
+   "nsfw": false,
+   "last_op": "add"
+  },
+  "user_name": "JeffSpeed68",
+  "upload_tags": ",media,remix,bpm_085_090,ccplus,non_commercial,audio,mp3,48k,stereo,VBR,flac,rock,ballad,female_vocals,chill,downtempo,ambient,",
+  "upload_num_scores": 6,
+  "file_page_url": "https://ccmixter.org/files/JeffSpeed68/71335",
+  "user_real_name": "Stefan Kartenberg",
+  "artist_page_url": "https://ccmixter.org/people/JeffSpeed68",
+  "license_logo_url": "https://ccmixter.org/ccskins/shared/images/lics/small-by-nc-3.png",
+  "license_url": "https://creativecommons.org/licenses/by-nc/4.0/",
+  "license_name": "Attribution Noncommercial (4.0)",
+  "upload_date_format": "Sun, Nov 8, 2026 @ 9:28 PM",
+  "files": [
+   {
+    "file_id": 130768,
+    "file_upload": 71335,
+    "file_name": "JeffSpeed68_-_SQUARE_PEGS_in_CIRCLES.mp3",
+    "file_nicname": "mp3",
+    "file_format_info": {
+     "media-type": "audio",
+     "format-name": "audio-mp3-mp3",
+     "default-ext": "mp3",
+     "mime_type": "audio/mpeg",
+     "sr": "48k",
+     "ch": "stereo",
+     "ps": "4:11",
+     "br": "VBR"
+    },
+    "file_extra": {
+     "sha1": "E3BYS4GRNXIHEU4KYUUSR5VW77UOLF3S"
+    },
+    "file_filesize": " (3.84MB)",
+    "file_order": 0,
+    "file_is_remote": 0,
+    "file_num_download": 0,
+    "download_url": "https://ccmixter.org/content/JeffSpeed68/JeffSpeed68_-_SQUARE_PEGS_in_CIRCLES.mp3",
+    "file_rawsize": 4022592
+   },
+   {
+    "file_id": 130769,
+    "file_upload": 71335,
+    "file_name": "JeffSpeed68_-_SQUARE_PEGS_in_CIRCLES.flac",
+    "file_nicname": "SQUARE PEGS in CIRCLES",
+    "file_format_info": {
+     "media-type": "audio",
+     "format-name": "audio-flac-flac",
+     "default-ext": "flac",
+     "mime_type": "audio/x-flac",
+     "sr": "48k",
+     "ch": "stereo",
+     "ps": "4:11",
+     "br": "VBR"
+    },
+    "file_extra": {
+     "sha1": "LD37FLU5J5ODDAYZRUVYPFSJ7CQBYCZC"
+    },
+    "file_filesize": " (50.71MB)",
+    "file_order": 1,
+    "file_is_remote": 0,
+    "file_num_download": 0,
+    "download_url": "https://ccmixter.org/content/JeffSpeed68/JeffSpeed68_-_SQUARE_PEGS_in_CIRCLES.flac",
+    "file_rawsize": 53168281
+   }
+  ],
+  "upload_description_plain": "rock ballad",
+  "upload_description_html": "rock ballad"
+ },
+ {
+  "upload_id": 71327,
+  "upload_name": "Living in the past",
+  "upload_extra": {
+   "usertags": "female_vocals,chill,ambient,music_for_film",
+   "ccud": "media,remix,bpm_065_070,ccplus",
+   "systags": "non_commercial,audio,mp3,48k,stereo,VBR,audio,flac,48k,stereo,VBR",
+   "bpm": 66,
+   "relative_dir": "content/JeffSpeed68",
+   "featuring": "SO SHA",
+   "ccplus": true,
+   "nsfw": false,
+   "last_op": "add",
+   "num_reviews": 1
+  },
+  "user_name": "JeffSpeed68",
+  "upload_tags": ",media,remix,bpm_065_070,ccplus,non_commercial,audio,mp3,48k,stereo,VBR,flac,female_vocals,chill,ambient,music_for_film,",
+  "upload_num_scores": 9,
+  "file_page_url": "https://ccmixter.org/files/JeffSpeed68/71327",
+  "user_real_name": "Stefan Kartenberg",
+  "artist_page_url": "https://ccmixter.org/people/JeffSpeed68",
+  "license_logo_url": "https://ccmixter.org/ccskins/shared/images/lics/small-by-nc-3.png",
+  "license_url": "https://creativecommons.org/licenses/by-nc/4.0/",
+  "license_name": "Attribution Noncommercial (4.0)",
+  "upload_date_format": "Thu, Nov 5, 2026 @ 2:06 PM",
+  "files": [
+   {
+    "file_id": 130718,
+    "file_upload": 71327,
+    "file_name": "JeffSpeed68_-_Living_in_the_past.mp3",
+    "file_nicname": "mp3",
+    "file_format_info": {
+     "media-type": "audio",
+     "format-name": "audio-mp3-mp3",
+     "default-ext": "mp3",
+     "mime_type": "audio/mpeg",
+     "sr": "48k",
+     "ch": "stereo",
+     "ps": "4:02",
+     "br": "VBR"
+    },
+    "file_extra": {
+     "sha1": "Z6MA5NDHSF53TW3XNLAYACHJOHHDFUUG"
+    },
+    "file_filesize": " (3.70MB)",
+    "file_order": 0,
+    "file_is_remote": 0,
+    "file_num_download": 0,
+    "download_url": "https://ccmixter.org/content/JeffSpeed68/JeffSpeed68_-_Living_in_the_past.mp3",
+    "file_rawsize": 3879744
+   },
+   {
+    "file_id": 130719,
+    "file_upload": 71327,
+    "file_name": "JeffSpeed68_-_Living_in_the_past.flac",
+    "file_nicname": "Living in the past",
+    "file_format_info": {
+     "media-type": "audio",
+     "format-name": "audio-flac-flac",
+     "default-ext": "flac",
+     "mime_type": "audio/x-flac",
+     "sr": "48k",
+     "ch": "stereo",
+     "ps": "4:02",
+     "br": "VBR"
+    },
+    "file_extra": {
+     "sha1": "ZNPNXVO5YQX3LVCM7JNXJDWQS2C3GMSN"
+    },
+    "file_filesize": " (47.17MB)",
+    "file_order": 1,
+    "file_is_remote": 0,
+    "file_num_download": 0,
+    "download_url": "https://ccmixter.org/content/JeffSpeed68/JeffSpeed68_-_Living_in_the_past.flac",
+    "file_rawsize": 49464205
+   }
+  ],
+  "upload_description_plain": "Soft ambient track",
+  "upload_description_html": "Soft ambient track"
+ }
+]
