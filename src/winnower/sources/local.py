@@ -87,6 +87,9 @@ def to_item(path: Path, licence: str | None = None) -> SourceItem:
         audio_url=str(path.resolve()),
         tags=[genre] if isinstance(genre, str) else list(genre or []),
         raw={"path": str(path.resolve()), "file_tags": tags},
+        analysed_from="original",
+        lossy=is_lossy(str(path)),
+        allow_unknown=True,
     )
 
 

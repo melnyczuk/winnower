@@ -5,11 +5,18 @@ import numpy as np
 import pytest
 import soundfile as sf
 import synth
+from fakes import FakeResponse, FakeSession
 
 from winnower import index
 from winnower.config import AnalysisSettings, Settings
 from winnower.pipeline import harvest
-from winnower.sources.base import DailyQuotaExceeded, RateLimiter, SourceItem
+from winnower.sources.base import (
+    DailyQuotaExceeded,
+    RateLimiter,
+    SourceItem,
+    TooLarge,
+    download,
+)
 from winnower.sources.freesound import Freesound
 from winnower.storage import Store
 
@@ -76,28 +83,6 @@ def test_harvest_writes_samples_sidecars_and_index(tmp_path):
     assert again["skipped_existing"] == 3
 
 
-class FakeResponse:
-    def __init__(self, data):
-        self._data = data
-
-    def raise_for_status(self):
-        pass
-
-    def json(self):
-        return self._data
-
-
-class FakeSession:
-    def __init__(self, pages):
-        self.pages = pages
-        self.calls = []
-        self.headers = {}
-
-    def get(self, url, params=None, headers=None, timeout=None):
-        self.calls.append((url, params, headers))
-        return FakeResponse(self.pages[len(self.calls) - 1])
-
-
 def hit(i):
     return {
         "id": i,
@@ -152,3 +137,57 @@ def test_storage_round_trip(tmp_path):
     assert store.read_json("a/b/c.json") == {"x": 1}
     assert list(store.glob("a/*/*.json")) == ["a/b/c.json"]
     assert json.loads((tmp_path / "root/a/b/c.json").read_text()) == {"x": 1}
+
+
+def test_rate_limiter_fractional_rate_with_burst():
+    now = [0.0]
+    slept = []
+
+    def sleep(sec):
+        slept.append(sec)
+        now[0] += sec
+
+    rl = RateLimiter(per_minute=5 / 60, burst=5, clock=lambda: now[0], sleep=sleep)
+    for _ in range(6):
+        rl.acquire()
+    assert len(slept) == 1 and abs(slept[0] - 720.0) < 1e-6  # one call per 12 minutes
+
+
+def test_download_streams_and_enforces_cap():
+    big = FakeResponse(b"x" * 1000)
+    assert download(FakeSession([big]), "https://x/a.wav", max_bytes=2000) == b"x" * 1000
+    with pytest.raises(TooLarge):
+        download(FakeSession([FakeResponse(b"x" * 1000)]), "https://x/a.wav", max_bytes=500)
+    declared = FakeResponse(b"", headers={"Content-Length": "999999"})
+    with pytest.raises(TooLarge):
+        download(FakeSession([declared]), "https://x/a.wav", max_bytes=500)
+
+
+def test_unknown_licence_kept_and_flagged_when_allowed(tmp_path):
+    store = Store(str(tmp_path))
+    audio = ogg_bytes(synth.rain(12))
+    keep = item("k", None)
+    keep.allow_unknown = True
+    drop = item("d", "All rights reserved")
+    nd = item("n", "https://creativecommons.org/licenses/by-nd/4.0/")
+    nd.allow_unknown = True
+    counts = harvest([keep, drop, nd], lambda it: audio, store, SETTINGS)
+    assert counts["denied"] == 2 and counts["samples"] >= 1
+    sidecars = [store.read_json(k) for k in store.glob("samples/*/*.json")]
+    assert sidecars and all(s["licence"]["id"] == "web-unknown" for s in sidecars)
+    assert all(s["licence"]["decision"] == "flag" for s in sidecars)
+    assert "licensed" not in sidecars[0]["source"]["attribution"]
+    assert store.read_json("sources/freesound/n/meta.json")["status"] == "denied"
+
+
+def test_per_item_analysed_from_and_lossy_reach_the_sidecar(tmp_path):
+    store = Store(str(tmp_path))
+    it = item("o", "https://creativecommons.org/licenses/by/2.5/")
+    it.analysed_from, it.lossy = "original", False
+    harvest([it], lambda _: ogg_bytes(synth.rain(12)), store, SETTINGS)
+    sidecars = [store.read_json(k) for k in store.glob("samples/*/*.json")]
+    assert sidecars
+    assert sidecars[0]["audio"]["analysed_from"] == "original"
+    assert sidecars[0]["audio"]["subtype"] == "PCM_24"
+    assert sidecars[0]["licence"]["id"] == "CC-BY-2.5"
+    assert sidecars[0]["licence"]["decision"] == "allow"

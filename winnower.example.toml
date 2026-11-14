@@ -7,10 +7,15 @@ storage_root = "./data"
 # Freesound API key from https://freesound.org/apiv2/apply (env: FREESOUND_TOKEN)
 # freesound_token = "..."
 
+# Optional Openverse token for higher limits (env: OPENVERSE_TOKEN). Anonymous works.
+# openverse_token = "..."
+
 [licences]
 # allow: use freely · flag: keep but mark (e.g. non-commercial) · deny: skip at harvest time
-allow = ["CC0-1.0", "PDM", "CC-BY-3.0", "CC-BY-4.0"]
-flag = ["CC-BY-NC-3.0", "CC-BY-NC-4.0", "CC-BY-SA-3.0", "CC-BY-SA-4.0", "Sampling+"]
+# An entry without a version ("CC-BY") matches every version; "CC-BY-4.0" matches only 4.0.
+# ND licences are always denied. Move "NASA-Media" to allow if you've checked the items.
+allow = ["CC0-1.0", "PDM", "CC-BY"]
+flag = ["CC-BY-NC", "CC-BY-SA", "CC-BY-NC-SA", "Sampling+", "NASA-Media"]
 
 [analysis]
 sample_rate = 44100

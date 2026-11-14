@@ -162,13 +162,29 @@ LOCAL_UNKNOWN = LicenceInfo(
 )
 
 
+def _unknown(item: SourceItem, url: str | None) -> LicenceInfo:
+    if item.provider == "local":
+        return LOCAL_UNKNOWN
+    return LicenceInfo(
+        "web-unknown",
+        url,
+        "flag",
+        "no licence found: rights reserved by default, clear before release",
+    )
+
+
 def harvest(
-    items, fetch, store: Store, settings: Settings, analysed_from: str = "preview", lossy=None
+    items, fetch, store: Store, settings: Settings, analysed_from: str | None = None, lossy=None
 ) -> dict:
     """Run a stream of SourceItems through the pipeline. Returns counts.
 
-    ``fetch(item)`` returns bytes or a local path. ``lossy(item)`` says whether the
-    source is lossy (default: previews are, originals aren't).
+    ``fetch(item)`` returns bytes or a local path. ``analysed_from`` overrides each item's
+    own value. ``lossy(item)`` says whether the source is lossy; without it, the item's
+    ``lossy`` is used, else previews are assumed lossy and originals not.
+
+    Items without a recognisable licence are denied unless ``item.allow_unknown`` is set,
+    in which case they're kept and flagged ``web-unknown`` (``local-unknown`` for local
+    files). Recognised denials (ND and so on) are never overridden.
     """
     counts = {
         "seen": 0,
@@ -185,22 +201,23 @@ def harvest(
             counts["skipped_existing"] += 1
             continue
         lic = decide(item.licence_raw, settings.licences)
-        if item.provider == "local" and item.licence_raw is None:
-            lic = LOCAL_UNKNOWN
+        if lic.id is None and item.allow_unknown:
+            lic = _unknown(item, lic.url)
         source = _source_record(item, lic)
         if lic.decision == "deny":
             counts["denied"] += 1
             store.write_json(meta_key, source | {"status": "denied", "reason": lic.reason})
             continue
+        origin = analysed_from or item.analysed_from
+        if lossy:
+            is_lossy = lossy(item)
+        elif item.lossy is not None:
+            is_lossy = item.lossy
+        else:
+            is_lossy = origin == "preview"
         try:
             samples = process_audio(
-                fetch(item),
-                store,
-                settings,
-                source,
-                lic,
-                analysed_from,
-                lossy=lossy(item) if lossy else analysed_from == "preview",
+                fetch(item), store, settings, source, lic, origin, lossy=is_lossy
             )
         except Exception as e:  # one bad file must not stop a harvest
             log.warning("failed %s/%s: %s", item.provider, item.provider_id, e)

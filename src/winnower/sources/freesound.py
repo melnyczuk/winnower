@@ -12,7 +12,7 @@ from collections.abc import Iterator
 
 import requests
 
-from .base import RateLimiter, SourceItem
+from .base import USER_AGENT, RateLimiter, SourceItem, download
 
 API = "https://freesound.org/apiv2"
 FIELDS = "id,name,username,license,url,previews,tags,description,duration"
@@ -31,7 +31,7 @@ class Freesound:
             raise ValueError("Freesound needs an API token (FREESOUND_TOKEN)")
         self.token = token
         self.http = session or requests.Session()
-        self.http.headers.setdefault("User-Agent", "winnower/0.1 (+sample research tool)")
+        self.http.headers.setdefault("User-Agent", USER_AGENT)
         self.limiter = limiter or RateLimiter(per_minute=60, per_day=2000)
 
     def _get(self, url: str, params: dict | None = None) -> requests.Response:
@@ -93,6 +93,4 @@ class Freesound:
 
     def fetch_audio(self, item: SourceItem) -> bytes:
         # Previews are plain file downloads from the CDN, not API endpoint calls.
-        r = self.http.get(item.audio_url, timeout=60)
-        r.raise_for_status()
-        return r.content
+        return download(self.http, item.audio_url)
