@@ -88,6 +88,9 @@ def main(argv: list[str] | None = None) -> int:
     hw = hs.add_parser("wikimedia", help="search Wikimedia Commons (no key)")
     hw.add_argument("query")
     _common(hw)
+    hn = hs.add_parser("nasa", help="search the NASA Image and Video Library (no key)")
+    hn.add_argument("query")
+    _common(hn)
 
     sub.add_parser("reindex", help="rebuild the index from sidecars")
 
@@ -183,6 +186,12 @@ def _harvest(args, store: Store, settings) -> int:
         wm = WikimediaCommons()
         items = wm.search(args.query, limit=args.limit, max_duration=args.max_duration)
         return _run(items, wm.fetch_audio, store, settings)
+    if args.source == "nasa":
+        from .sources.nasa import NasaMedia
+
+        nasa = NasaMedia()
+        items = nasa.search(args.query, limit=args.limit, max_duration=args.max_duration)
+        return _run(items, nasa.fetch_audio, store, settings)
     raise AssertionError(args.source)
 
 
