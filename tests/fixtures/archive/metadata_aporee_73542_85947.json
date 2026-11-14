@@ -1,0 +1,112 @@
+{
+ "created": 1794664873,
+ "dir": "/27/items/aporee_73542_85947",
+ "files": [
+  {
+   "name": "AMBNatrFieldAtNightLapwingCallWarmAir.afpk",
+   "source": "derivative",
+   "format": "Columbia Peaks",
+   "original": "AMBNatrFieldAtNightLapwingCallWarmAir.wav",
+   "mtime": "1790092809",
+   "size": "22344"
+  },
+  {
+   "name": "AMBNatrFieldAtNightLapwingCallWarmAir.flac",
+   "source": "derivative",
+   "format": "Flac",
+   "original": "AMBNatrFieldAtNightLapwingCallWarmAir.wav",
+   "mtime": "1790090999",
+   "size": "22262954",
+   "length": "132"
+  },
+  {
+   "name": "AMBNatrFieldAtNightLapwingCallWarmAir.mp3",
+   "source": "derivative",
+   "length": "02:12",
+   "format": "VBR MP3",
+   "original": "AMBNatrFieldAtNightLapwingCallWarmAir.wav",
+   "mtime": "1790086662",
+   "size": "3034765"
+  },
+  {
+   "name": "AMBNatrFieldAtNightLapwingCallWarmAir.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "AMBNatrFieldAtNightLapwingCallWarmAir.wav",
+   "mtime": "1790091530",
+   "size": "40019"
+  },
+  {
+   "name": "AMBNatrFieldAtNightLapwingCallWarmAir.wav",
+   "source": "original",
+   "mtime": "1790072041",
+   "size": "38025204",
+   "format": "WAVE",
+   "length": "132"
+  },
+  {
+   "name": "AMBNatrFieldAtNightLapwingCallWarmAir_spectrogram.png",
+   "source": "derivative",
+   "format": "Spectrogram",
+   "original": "AMBNatrFieldAtNightLapwingCallWarmAir.wav",
+   "mtime": "1790092080",
+   "size": "211026"
+  },
+  {
+   "name": "__ia_thumb.jpg",
+   "source": "original",
+   "mtime": "1790092991",
+   "size": "3005",
+   "format": "Item Tile"
+  },
+  {
+   "name": "aporee_73542_85947_archive.torrent",
+   "source": "metadata",
+   "mtime": "1790093065",
+   "size": "5316",
+   "format": "Archive BitTorrent"
+  },
+  {
+   "name": "aporee_73542_85947_files.xml",
+   "source": "original",
+   "format": "Metadata"
+  },
+  {
+   "name": "aporee_73542_85947_meta.sqlite",
+   "source": "original",
+   "mtime": "1790072144",
+   "size": "20480",
+   "format": "Metadata"
+  },
+  {
+   "name": "aporee_73542_85947_meta.xml",
+   "source": "original",
+   "mtime": "1790093063",
+   "size": "1850",
+   "format": "Metadata"
+  }
+ ],
+ "files_count": 11,
+ "metadata": {
+  "identifier": "aporee_73542_85947",
+  "altitude": "171",
+  "contributor": "radio aporee",
+  "coverage": "datum=WGS84; latitude=55.138217053415; longitude=36.857698559761; elevation=171; name=Миньково, Жуковский муниципальный округ, Калужская область, Центральный федеральный округ, 249165, Россия; date=2026-05-23 23:49:00 Europe/Moscow;",
+  "creator": "Pasha Lens",
+  "date": "2026-05-23 23:49:00",
+  "description": "Quiet field ambience at night near a village. A lapwing calling in the distance under a clear starry sky. Warm still night air with a very quiet rural background.<br />ZOOM H5 XY",
+  "latitude": "55.138217053415",
+  "licenseurl": "https://creativecommons.org/publicdomain/mark/1.0/",
+  "longitude": "36.857698559761",
+  "mediatype": "audio",
+  "notes": "<b>radio aporee ::: sounds of the world:</b><br /> \t\t\t open this recording on <a href=\"https://aporee.org/maps/?loc=73542&snd=85947\" rel=\"ugc nofollow\">radio aporee ::: maps</a>, \t\t\t a global sound-mapping project dedicated to field recording, phonography and the art of listening. \t\t\t <a href=\"https://aporee.org/maps/info/\" rel=\"ugc nofollow\">read more...</a>",
+  "subject": "field recording;phonography;soundscape;sound art;soundmap;radio;ephemeral;listening;radio aporee",
+  "timezone": "Europe/Moscow",
+  "title": "Zhukovsky Municipal District, Kaluga Oblast, Russia - lapwing calling at the night field",
+  "collection": "radio-aporee-maps",
+  "uploader": "radio@aporee.org",
+  "publicdate": "2026-09-22 10:14:55",
+  "addeddate": "2026-09-22 10:14:55"
+ },
+ "server": "ia600702.us.archive.org"
+}

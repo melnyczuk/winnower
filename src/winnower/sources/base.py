@@ -9,8 +9,10 @@ injectable ``session`` and ``limiter`` so tests can feed them recorded responses
 from __future__ import annotations
 
 import os
+import re
 import time
 from dataclasses import dataclass, field
+from html.parser import HTMLParser
 from typing import Any
 
 import requests
@@ -104,3 +106,26 @@ def download(http, url: str, max_bytes: int = MAX_DOWNLOAD_BYTES) -> bytes:
             r.close()
             raise TooLarge(f"{url} is over the {max_bytes} byte cap")
     return bytes(buf)
+
+
+class _Text(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("br", "p", "div", "li"):
+            self.parts.append(" ")
+
+    def handle_data(self, data):
+        self.parts.append(data)
+
+
+def strip_html(s: str | None) -> str | None:
+    """Plain text from an HTML fragment (Wikimedia's Artist, IA descriptions)."""
+    if not s:
+        return s
+    p = _Text()
+    p.feed(s)
+    p.close()
+    return re.sub(r"\s+", " ", "".join(p.parts)).strip() or None

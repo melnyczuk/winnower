@@ -81,6 +81,10 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="keep Freesound results (skipped by default: use `harvest freesound`)",
     )
+    ha = hs.add_parser("archive", help="search the Internet Archive (no key)")
+    ha.add_argument("query")
+    _common(ha, unlicensed=True)
+    ha.add_argument("--collection", help="limit to a collection, e.g. netlabels, radio-aporee-maps")
 
     sub.add_parser("reindex", help="rebuild the index from sidecars")
 
@@ -159,6 +163,17 @@ def _harvest(args, store: Store, settings) -> int:
             licence_type=args.licence_type,
         )
         return _run(items, ov.fetch_audio, store, settings)
+    if args.source == "archive":
+        from .sources.internet_archive import InternetArchive
+
+        ia = InternetArchive(allow_unknown=args.include_unlicensed)
+        items = ia.search(
+            args.query,
+            limit=args.limit,
+            max_duration=args.max_duration,
+            collection=args.collection,
+        )
+        return _run(items, ia.fetch_audio, store, settings)
     raise AssertionError(args.source)
 
 

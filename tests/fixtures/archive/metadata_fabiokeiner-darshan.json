@@ -1,0 +1,129 @@
+{
+ "created": 1794664891,
+ "dir": "/0/items/fabiokeiner-darshan",
+ "files": [
+  {
+   "name": "Cover_Darshan.jpg",
+   "source": "original",
+   "mtime": "1699944015",
+   "size": "374464",
+   "format": "JPEG"
+  },
+  {
+   "name": "Cover_Darshan_thumb.jpg",
+   "source": "derivative",
+   "format": "JPEG Thumb",
+   "original": "Cover_Darshan.jpg",
+   "mtime": "1699947895",
+   "size": "9183"
+  },
+  {
+   "name": "Darshan.afpk",
+   "source": "derivative",
+   "format": "Columbia Peaks",
+   "original": "Darshan.wav",
+   "mtime": "1699948435",
+   "size": "714640"
+  },
+  {
+   "name": "Darshan.flac",
+   "source": "derivative",
+   "format": "Flac",
+   "original": "Darshan.wav",
+   "mtime": "1699947951",
+   "size": "331024627",
+   "length": "2306.88"
+  },
+  {
+   "name": "Darshan.mp3",
+   "source": "derivative",
+   "length": "38:27",
+   "format": "VBR MP3",
+   "original": "Darshan.wav",
+   "mtime": "1699947876",
+   "size": "46508089"
+  },
+  {
+   "name": "Darshan.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Darshan.wav",
+   "mtime": "1699948098",
+   "size": "22553"
+  },
+  {
+   "name": "Darshan.wav",
+   "source": "original",
+   "mtime": "1699947663",
+   "size": "610400492",
+   "format": "WAVE",
+   "length": "2306.88"
+  },
+  {
+   "name": "Darshan_spectrogram.png",
+   "source": "derivative",
+   "format": "Spectrogram",
+   "original": "Darshan.wav",
+   "mtime": "1699948177",
+   "size": "287706"
+  },
+  {
+   "name": "__ia_thumb.jpg",
+   "source": "original",
+   "mtime": "1699944045",
+   "size": "11364",
+   "format": "Item Tile"
+  },
+  {
+   "name": "fabiokeiner-darshan_archive.torrent",
+   "source": "metadata",
+   "mtime": "1699948528",
+   "size": "40818",
+   "format": "Archive BitTorrent"
+  },
+  {
+   "name": "fabiokeiner-darshan_files.xml",
+   "source": "original",
+   "format": "Metadata"
+  },
+  {
+   "name": "fabiokeiner-darshan_meta.sqlite",
+   "source": "original",
+   "mtime": "1699947675",
+   "size": "20480",
+   "format": "Metadata"
+  },
+  {
+   "name": "fabiokeiner-darshan_meta.xml",
+   "source": "original",
+   "mtime": "1699948479",
+   "size": "771",
+   "format": "Metadata"
+  }
+ ],
+ "files_count": 13,
+ "metadata": {
+  "identifier": "fabiokeiner-darshan",
+  "mediatype": "audio",
+  "collection": [
+   "mindblasting",
+   "netlabels"
+  ],
+  "description": "Fabio Keiner - Darshan",
+  "licenseurl": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+  "scanner": "Internet Archive HTML5 Uploader 1.7.0",
+  "subject": [
+   "fabio keiner",
+   "darshan",
+   "ambient",
+   "electronic",
+   "experimental",
+   "mindblasting"
+  ],
+  "title": "Fabio Keiner - Darshan",
+  "uploader": "astralx@gmail.com",
+  "publicdate": "2023-11-14 06:40:32",
+  "addeddate": "2023-11-14 06:40:32"
+ },
+ "server": "ia800801.us.archive.org"
+}
