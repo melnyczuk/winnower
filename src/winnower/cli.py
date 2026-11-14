@@ -85,6 +85,9 @@ def main(argv: list[str] | None = None) -> int:
     ha.add_argument("query")
     _common(ha, unlicensed=True)
     ha.add_argument("--collection", help="limit to a collection, e.g. netlabels, radio-aporee-maps")
+    hw = hs.add_parser("wikimedia", help="search Wikimedia Commons (no key)")
+    hw.add_argument("query")
+    _common(hw)
 
     sub.add_parser("reindex", help="rebuild the index from sidecars")
 
@@ -174,6 +177,12 @@ def _harvest(args, store: Store, settings) -> int:
             collection=args.collection,
         )
         return _run(items, ia.fetch_audio, store, settings)
+    if args.source == "wikimedia":
+        from .sources.wikimedia import WikimediaCommons
+
+        wm = WikimediaCommons()
+        items = wm.search(args.query, limit=args.limit, max_duration=args.max_duration)
+        return _run(items, wm.fetch_audio, store, settings)
     raise AssertionError(args.source)
 
 
