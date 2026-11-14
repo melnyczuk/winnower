@@ -25,10 +25,10 @@ def test_search_paginates_by_offset_and_maps_fields():
     assert len(items) == 3
     assert session.calls[0][1] == {
         "f": "json",
-        "limit": 2,
         "search": "ambient",
         "tags": "chill",
         "offset": 0,
+        "limit": 2,
     }
     assert session.calls[1][1]["offset"] == 2 and len(session.calls) == 2
 
@@ -41,6 +41,23 @@ def test_search_paginates_by_offset_and_maps_fields():
     assert "ambient" in it.tags and "mp3" not in it.tags
     assert decide(it.licence_raw, SETTINGS.licences).id == "CC-BY-NC-4.0"
     assert decide(it.licence_raw, SETTINGS.licences).decision == "flag"
+
+
+def test_page_halves_when_header_is_too_long():
+    import requests
+
+    class Flaky(FakeSession):
+        def get(self, url, params=None, headers=None, timeout=None, stream=False):
+            limits.append(params["limit"])
+            if params["limit"] > 2:
+                raise requests.ConnectionError("LineTooLong: got more than 65536 bytes")
+            return super().get(url, params, headers, timeout, stream)
+
+    limits = []
+    session = Flaky([UPLOADS, []])
+    items = list(CcMixter(session=session, limiter=no_wait()).search("x", page_size=8))
+    assert len(items) == 2
+    assert limits == [8, 4, 2, 2]
 
 
 def test_limit_and_max_duration():

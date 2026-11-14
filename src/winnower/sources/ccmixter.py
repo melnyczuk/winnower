@@ -4,6 +4,10 @@ The query API (``/api/query?f=json``) searches uploads by text and tags; each up
 lists its files (often an MP3 plus a FLAC or WAV, sometimes a ZIP of stems). The best
 audio file is used: FLAC/WAV under the size cap, else MP3. Every upload carries a
 Creative Commons ``license_url``. Default rate: 30 requests a minute.
+
+The server echoes the whole JSON body into an ``X-JSON`` response header, and Python's
+HTTP client rejects header lines over 64 KB, so pages are small (5 uploads) and halved
+when one still comes back too big.
 """
 
 from __future__ import annotations
@@ -64,16 +68,23 @@ class CcMixter:
         limit: int = 20,
         max_duration: float = 600.0,
         tags: str | None = None,
-        page_size: int = 50,
+        page_size: int = 5,
     ) -> Iterator[SourceItem]:
-        params: dict = {"f": "json", "limit": page_size}
+        params: dict = {"f": "json"}
         if query:
             params["search"] = query
         if tags:
             params["tags"] = tags
         offset, yielded = 0, 0
         while yielded < limit:
-            uploads = self._get(params | {"offset": offset}).json() or []
+            try:
+                uploads = self._get(params | {"offset": offset, "limit": page_size}).json()
+            except requests.ConnectionError:
+                if page_size == 1:
+                    raise
+                page_size = max(1, page_size // 2)  # the X-JSON header was too long
+                continue
+            uploads = uploads or []
             for up in uploads:
                 item = self.to_item(up, self.max_bytes, self.allow_unknown)
                 if item is None or (item.duration_s and item.duration_s > max_duration):
