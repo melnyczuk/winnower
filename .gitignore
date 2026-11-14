@@ -6,3 +6,4 @@ __pycache__/
 /data/
 winnower.toml
 .env
+.DS_Store
