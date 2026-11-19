@@ -140,7 +140,9 @@ def load_settings(path: str | os.PathLike | None = None) -> Settings:
                 os.environ.get("WINNOWER_MIN_INTEREST", ana.get("min_interest", 0.35))
             ),
             chunk_s=float(ana.get("chunk_s", 600.0)),
-            min_duration_s=float(ana.get("min_duration_s", 2.0)),
+            min_duration_s=float(
+                os.environ.get("WINNOWER_MIN_DURATION_S", ana.get("min_duration_s", 2.0))
+            ),
             target_duration_s=float(ana.get("target_duration_s", 10.0)),
             max_duration_s=float(ana.get("max_duration_s", 24.0)),
             bpm_min=int(ana.get("bpm_min", 70)),

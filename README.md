@@ -65,6 +65,7 @@ winnower harvest ccmixter --tags ambient,field_recording
 winnower harvest manifest fsd50k.csv         # url|path, licence, title, author, tags, ...
 winnower harvest web https://some-netlabel.example/release/ --depth 1
 winnower harvest local ~/Music/albums        # folders are scanned recursively
+winnower harvest local ~/Music/albums --min-length 8   # no sample shorter than 8s
 winnower harvest local ~/netlabel-ep --licence https://creativecommons.org/licenses/by/4.0/
 winnower list --min-interest 0.6 --type loop
 winnower list --camelot 8A --compatible --bpm 90-110   # mixes with A minor, 90-110 BPM
@@ -73,7 +74,9 @@ winnower list --commercial                   # only licences allowed for release
 winnower reindex                             # rebuild index from sidecars
 ```
 
-Every harvest takes `--limit` (source files to process) and `--max-duration` (seconds).
+Every harvest takes `--limit` (source files to process), `--max-duration` (seconds of
+source audio) and `--min-length` (seconds: the shortest sample to cut, overriding
+`[analysis] min_duration_s`; samples are whole bars, so they come out at or above it).
 Re-running a harvest skips files already processed. If a search fails or a daily quota
 runs out, the run stops with a message and keeps what it already harvested.
 
@@ -226,7 +229,8 @@ the wrap is in timbre; filter with `list --min-seam`.
 Sidecar fields: `region.{bpm, beats, bars, tempo_source, tempo_confidence, seam,
 crossfade_ms}` and `key.{tonic, mode, name, short, camelot, confidence}` (`null` when
 there's no key). Lengths and tempo range are set under `[analysis]` in `winnower.toml`
-(`min_duration_s`, `target_duration_s`, `max_duration_s`, `bpm_min`, `bpm_max`).
+(`min_duration_s`, `target_duration_s`, `max_duration_s`, `bpm_min`, `bpm_max`);
+`min_duration_s` can also come from `WINNOWER_MIN_DURATION_S` or `harvest --min-length`.
 
 ## How regions are scored
 

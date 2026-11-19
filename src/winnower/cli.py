@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import sys
+from dataclasses import replace
 from collections.abc import Callable, Iterable, Iterator
 
 import requests
@@ -43,6 +44,13 @@ def _harvest(args: argparse.Namespace, store: Store, settings: Settings) -> int:
     """Open the chosen source, harvest it, rebuild the index and print counts. A failed
     search or a used-up quota stops the run cleanly; what was harvested is kept."""
     source: Source = args.source
+    if args.min_length is not None:
+        longest = settings.analysis.max_duration_s
+        if not 0 < args.min_length <= longest:
+            print(f"--min-length must be above 0 and at most {longest:g}s", file=sys.stderr)
+            return 2
+        analysis = replace(settings.analysis, min_duration_s=args.min_length)
+        settings = replace(settings, analysis=analysis)
     try:
         h: Harvest = source.open(args, settings)
     except SourceError as e:
@@ -129,6 +137,12 @@ def parser(sources: Iterable[Source] = SOURCES) -> argparse.ArgumentParser:
         p = hs.add_parser(source.name, help=source.help)
         for a in source.args:
             p.add_argument(*a.flags, **a.options)
+        p.add_argument(
+            "--min-length",
+            type=float,
+            metavar="SECONDS",
+            help="shortest sample to keep (overrides analysis.min_duration_s)",
+        )
         p.set_defaults(command=_harvest, source=source)
 
     sub.add_parser("reindex", help="rebuild the index from sidecars").set_defaults(command=_reindex)

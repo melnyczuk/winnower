@@ -42,3 +42,26 @@ def test_sources_can_be_swapped_without_touching_the_cli(tmp_path, capsys):
 
     with pytest.raises(SystemExit):  # the real sources aren't there
         cli.main(["--root", str(tmp_path), "harvest", "freesound", "rain"], sources=sources)
+
+
+def test_min_length_overrides_the_shortest_sample(tmp_path, capsys):
+    seen = {}
+    source = fake_source(seen)
+    opened = {}
+
+    def open_(args, settings):
+        opened["min"] = settings.analysis.min_duration_s
+        return source.open(args, settings)
+
+    sources = (Source(source.name, source.help, source.args, open_),)
+    root = ["--root", str(tmp_path), "harvest", "fake", "rain"]
+    assert cli.main([*root, "--min-length", "6"], sources=sources) == 0
+    assert opened["min"] == 6.0
+    for row in cli.index.load(cli.Store(str(tmp_path))):
+        assert row["duration_s"] >= 6.0
+
+    opened.clear()
+    for bad in ("0", "1000"):
+        assert cli.main([*root, "--min-length", bad], sources=sources) == 2
+        assert "--min-length" in capsys.readouterr().err
+    assert not opened

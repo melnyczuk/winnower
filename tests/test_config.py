@@ -85,3 +85,10 @@ def test_output_format_from_toml_and_env(env, tmp_path):
     env["WINNOWER_OUTPUT_FORMAT"] = "wav"
     with pytest.raises(ValueError, match="output format"):
         load_settings()
+
+
+def test_min_duration_from_env_beats_toml(env, tmp_path):
+    (tmp_path / "winnower.toml").write_text("[analysis]\nmin_duration_s = 3.0\n")
+    assert load_settings().analysis.min_duration_s == 3.0
+    env["WINNOWER_MIN_DURATION_S"] = "7.5"
+    assert load_settings().analysis.min_duration_s == 7.5
