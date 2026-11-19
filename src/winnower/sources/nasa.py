@@ -124,7 +124,7 @@ class NasaMedia:
 
 
 def _open(args, settings) -> Harvest:
-    nasa = NasaMedia()
+    nasa = NasaMedia(session=http_session(settings.crawl))
     return Harvest(nasa.search(args.query, **window(args)), nasa.fetch_audio)
 
 

@@ -12,7 +12,7 @@ from collections.abc import Iterator
 
 import requests
 
-from .base import RateLimiter, SourceItem, download, user_agent
+from .base import RateLimiter, SourceItem, download, http_session, user_agent
 from .spec import QUERY, Harvest, Source, SourceError, arg, limits, window
 
 API = "https://freesound.org/apiv2"
@@ -31,7 +31,7 @@ class Freesound:
         if not token:
             raise ValueError("Freesound needs an API token (FREESOUND_TOKEN)")
         self.token = token
-        self.http = session or requests.Session()
+        self.http = session or http_session()
         self.http.headers.setdefault("User-Agent", user_agent())
         self.limiter = limiter or RateLimiter(per_minute=60, per_day=2000)
 
@@ -104,7 +104,7 @@ def _open(args, settings) -> Harvest:
             "Give --token, or set FREESOUND_TOKEN (environment or .env) "
             "or freesound_token in winnower.toml"
         )
-    fs = Freesound(token)
+    fs = Freesound(token, session=http_session(settings.crawl))
     return Harvest(fs.search(args.query, **window(args)), fs.fetch_audio)
 
 

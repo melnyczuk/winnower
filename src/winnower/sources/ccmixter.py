@@ -137,7 +137,7 @@ class CcMixter:
 def _open(args, settings) -> Harvest:
     if not args.query and not args.tags:
         raise SourceError("Give a search query or --tags")
-    cc = CcMixter()
+    cc = CcMixter(session=http_session(settings.crawl))
     return Harvest(cc.search(args.query, tags=args.tags, **window(args)), cc.fetch_audio)
 
 

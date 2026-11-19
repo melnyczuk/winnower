@@ -123,7 +123,7 @@ class WikimediaCommons:
 
 
 def _open(args, settings) -> Harvest:
-    wm = WikimediaCommons()
+    wm = WikimediaCommons(session=http_session(settings.crawl))
     return Harvest(wm.search(args.query, **window(args)), wm.fetch_audio)
 
 

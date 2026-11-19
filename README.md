@@ -133,6 +133,18 @@ prefers a lossless original, then a lossless derivative, a lossy original and fi
 IA's Ogg or MP3 transcode. Downloads over 200 MB are refused, so a Raspberry Pi never
 buffers a 2 GB WAV.
 
+### Pacing and rate limits
+
+Every request (searches and downloads alike) goes through one pacer per host. Requests to
+a host are spaced about 1.5 s apart, varied by ±50% so they never fall into a steady beat.
+A 429 or 503 doubles that gap, and each success takes 10% off again. 429, 502, 503, 504
+and dropped connections are retried up to 4 times, waiting for the host's `Retry-After`
+or an exponential backoff. If a host asks for a wait over 5 minutes (a daily cap, say),
+it is left alone and the run stops cleanly. Every 25 to 60 requests to one host there is
+also a pause of 10 to 40 s. Tune it in `[crawl]` in `winnower.toml`, or set
+`WINNOWER_MIN_INTERVAL_S`; `-v` logs each wait. The per-source API quotas above apply
+on top of this.
+
 ### User-Agent
 
 Requests send `winnower/0.1 (+sample research tool)`. Wikimedia asks for contact details

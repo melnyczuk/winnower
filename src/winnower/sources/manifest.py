@@ -137,7 +137,12 @@ def iter_manifest(path: str | Path, **kw) -> Iterator[SourceItem]:
 def _open(args, settings) -> Harvest:
     if not args.path.exists():
         raise SourceError(f"No such manifest: {args.path}")
-    m = Manifest(args.path, provider=args.provider, allow_unknown=args.allow_unknown)
+    m = Manifest(
+        args.path,
+        provider=args.provider,
+        allow_unknown=args.allow_unknown,
+        session=http_session(settings.crawl),
+    )
     return Harvest(m.search(**window(args)), m.fetch_audio)
 
 

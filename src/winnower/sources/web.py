@@ -289,6 +289,7 @@ def _open(args, settings) -> Harvest:
         max_pages=args.max_pages,
         allow_unknown=args.allow_unknown,
         licence=args.licence,
+        session=http_session(settings.crawl),
     )
     return Harvest(web.search(args.urls, **window(args)), web.fetch_audio)
 

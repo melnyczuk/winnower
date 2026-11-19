@@ -140,7 +140,11 @@ class Openverse:
 
 
 def _open(args, settings) -> Harvest:
-    ov = Openverse(args.token or settings.openverse_token, include_freesound=args.include_freesound)
+    ov = Openverse(
+        args.token or settings.openverse_token,
+        include_freesound=args.include_freesound,
+        session=http_session(settings.crawl),
+    )
     items = ov.search(
         args.query, licence=args.licence, licence_type=args.licence_type, **window(args)
     )

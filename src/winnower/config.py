@@ -49,6 +49,26 @@ class OutputSettings:
 
 
 @dataclass(frozen=True)
+class CrawlSettings:
+    """How gently every HTTP request is paced, per host (see ``sources.polite``)."""
+
+    min_interval_s: float = 1.5  # base gap between requests to one host
+    jitter: float = 0.5  # each gap varies by up to this fraction either way
+    max_retries: int = 4  # on 429, 5xx gateway errors and dropped connections
+    max_backoff_s: float = 300.0  # a longer Retry-After stops instead of waiting
+    breather_every: tuple[int, int] = (25, 60)  # requests to a host between long pauses
+    breather_s: tuple[float, float] = (10.0, 40.0)  # length of a long pause
+
+    def __post_init__(self):
+        if not 0 <= self.jitter < 1:
+            raise ValueError(f"crawl jitter must be in [0, 1): {self.jitter}")
+        for name in ("breather_every", "breather_s"):
+            lo, hi = getattr(self, name)
+            if lo > hi or lo < 0:
+                raise ValueError(f"crawl {name} must be [low, high]: {getattr(self, name)}")
+
+
+@dataclass(frozen=True)
 class Settings:
     storage_root: str = "./data"
     freesound_token: str | None = None
@@ -56,6 +76,7 @@ class Settings:
     licences: LicencePolicy = field(default_factory=LicencePolicy)
     analysis: AnalysisSettings = field(default_factory=AnalysisSettings)
     output: OutputSettings = field(default_factory=OutputSettings)
+    crawl: CrawlSettings = field(default_factory=CrawlSettings)
 
 
 def load_env_file(path: str | os.PathLike | None = None) -> dict[str, str]:
@@ -84,6 +105,12 @@ def load_env_file(path: str | os.PathLike | None = None) -> dict[str, str]:
     return values
 
 
+def _pair(v, kind):
+    """``[low, high]`` from TOML, or a single number for both."""
+    lo, hi = (v, v) if isinstance(v, int | float) else v
+    return kind(lo), kind(hi)
+
+
 def load_settings(path: str | os.PathLike | None = None) -> Settings:
     """Read settings from a TOML file (default ./winnower.toml if present), then env vars."""
     data: dict = {}
@@ -96,6 +123,8 @@ def load_settings(path: str | os.PathLike | None = None) -> Settings:
     lic = data.get("licences", {})
     ana = data.get("analysis", {})
     out = data.get("output", {})
+    crawl = data.get("crawl", {})
+    dc = CrawlSettings()
     return Settings(
         storage_root=os.environ.get("WINNOWER_STORAGE_ROOT", data.get("storage_root", "./data")),
         freesound_token=os.environ.get("FREESOUND_TOKEN", data.get("freesound_token")),
@@ -119,5 +148,17 @@ def load_settings(path: str | os.PathLike | None = None) -> Settings:
         ),
         output=OutputSettings(
             format=os.environ.get("WINNOWER_OUTPUT_FORMAT", out.get("format", "flac")).lower(),
+        ),
+        crawl=CrawlSettings(
+            min_interval_s=float(
+                os.environ.get(
+                    "WINNOWER_MIN_INTERVAL_S", crawl.get("min_interval_s", dc.min_interval_s)
+                )
+            ),
+            jitter=float(crawl.get("jitter", dc.jitter)),
+            max_retries=int(crawl.get("max_retries", dc.max_retries)),
+            max_backoff_s=float(crawl.get("max_backoff_s", dc.max_backoff_s)),
+            breather_every=_pair(crawl.get("breather_every", dc.breather_every), int),
+            breather_s=_pair(crawl.get("breather_s", dc.breather_s), float),
         ),
     )

@@ -36,3 +36,12 @@ bpm_max = 150
 # a sampler or DAW that ignores the gapless header may click or drift at the loop point.
 # Env: WINNOWER_OUTPUT_FORMAT. Changing it later leaves existing samples as they are.
 format = "flac"
+
+[crawl]
+# How gently requests are paced, per host (searches and downloads alike).
+min_interval_s = 1.5      # base gap between requests to one host (env: WINNOWER_MIN_INTERVAL_S)
+jitter = 0.5              # each gap varies by up to ±50%, so requests never fall into a beat
+max_retries = 4           # for 429, 502, 503, 504 and dropped connections
+max_backoff_s = 300       # a host asking for a longer wait is left alone; the run stops
+breather_every = [25, 60] # a longer pause after this many requests to one host ([0, 0]: off)
+breather_s = [10, 40]     # length of that pause, in seconds

@@ -17,6 +17,9 @@ from typing import Any
 
 import requests
 
+from ..config import CrawlSettings
+from .polite import PoliteSession
+
 DEFAULT_USER_AGENT = "winnower/0.1 (+sample research tool)"
 MAX_DOWNLOAD_BYTES = 200_000_000
 
@@ -43,7 +46,7 @@ class RateLimiter:
     """Token bucket: at most ``per_minute`` calls a minute and ``per_day`` calls in total.
 
     ``per_minute`` may be fractional (5/60 is five an hour); ``burst`` is the bucket size,
-    by default one minute's worth (at least one call).
+    by default three calls (fewer if the rate is lower), so a run never opens with a volley.
     """
 
     def __init__(
@@ -54,7 +57,7 @@ class RateLimiter:
         sleep=time.sleep,
         burst: float | None = None,
     ):
-        self.capacity = float(burst if burst is not None else max(1.0, per_minute))
+        self.capacity = float(burst if burst is not None else max(1.0, min(3.0, per_minute)))
         self.tokens = self.capacity
         self.rate = per_minute / 60.0
         self.per_day = per_day
@@ -85,10 +88,11 @@ class TooLarge(RuntimeError):
     pass
 
 
-def http_session() -> requests.Session:
+def http_session(crawl: CrawlSettings | None = None) -> PoliteSession:
+    """A session that paces, backs off and retries per host (see :mod:`.polite`)."""
     s = requests.Session()
     s.headers["User-Agent"] = user_agent()
-    return s
+    return PoliteSession(s, crawl)
 
 
 def download(http, url: str, max_bytes: int = MAX_DOWNLOAD_BYTES) -> bytes:

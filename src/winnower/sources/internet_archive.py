@@ -204,7 +204,7 @@ class InternetArchive:
 
 
 def _open(args, settings) -> Harvest:
-    ia = InternetArchive(allow_unknown=args.allow_unknown)
+    ia = InternetArchive(session=http_session(settings.crawl), allow_unknown=args.allow_unknown)
     return Harvest(
         ia.search(args.query, collection=args.collection, **window(args)), ia.fetch_audio
     )
