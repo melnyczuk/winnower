@@ -34,6 +34,20 @@ class AnalysisSettings:
     bpm_max: int = 150
 
 
+OUTPUT_FORMATS = ("flac", "mp3")
+
+
+@dataclass(frozen=True)
+class OutputSettings:
+    # "flac" (lossless, loops seamlessly) or "mp3" (320k CBR, ~3-4x smaller; encoder
+    # padding can put a gap at the loop point in DAWs that ignore the gapless header).
+    format: str = "flac"
+
+    def __post_init__(self):
+        if self.format not in OUTPUT_FORMATS:
+            raise ValueError(f"output format must be one of {OUTPUT_FORMATS}: {self.format!r}")
+
+
 @dataclass(frozen=True)
 class Settings:
     storage_root: str = "./data"
@@ -41,6 +55,7 @@ class Settings:
     openverse_token: str | None = None
     licences: LicencePolicy = field(default_factory=LicencePolicy)
     analysis: AnalysisSettings = field(default_factory=AnalysisSettings)
+    output: OutputSettings = field(default_factory=OutputSettings)
 
 
 def load_env_file(path: str | os.PathLike | None = None) -> dict[str, str]:
@@ -80,6 +95,7 @@ def load_settings(path: str | os.PathLike | None = None) -> Settings:
 
     lic = data.get("licences", {})
     ana = data.get("analysis", {})
+    out = data.get("output", {})
     return Settings(
         storage_root=os.environ.get("WINNOWER_STORAGE_ROOT", data.get("storage_root", "./data")),
         freesound_token=os.environ.get("FREESOUND_TOKEN", data.get("freesound_token")),
@@ -100,5 +116,8 @@ def load_settings(path: str | os.PathLike | None = None) -> Settings:
             max_duration_s=float(ana.get("max_duration_s", 24.0)),
             bpm_min=int(ana.get("bpm_min", 70)),
             bpm_max=int(ana.get("bpm_max", 150)),
+        ),
+        output=OutputSettings(
+            format=os.environ.get("WINNOWER_OUTPUT_FORMAT", out.get("format", "flac")).lower(),
         ),
     )

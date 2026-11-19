@@ -74,3 +74,14 @@ def test_cli_token_flags_and_env_file(env, tmp_path, monkeypatch, capsys):
     assert cli.main(argv) == 0 and seen["Openverse"] == "ov"
     assert cli.main([*argv, "--token", "flag"]) == 0 and seen["Openverse"] == "flag"
     assert json.loads(capsys.readouterr().out.splitlines()[-1])["seen"] == 0
+
+
+def test_output_format_from_toml_and_env(env, tmp_path):
+    assert load_settings().output.format == "flac"
+    (tmp_path / "winnower.toml").write_text('[output]\nformat = "mp3"\n')
+    assert load_settings().output.format == "mp3"
+    env["WINNOWER_OUTPUT_FORMAT"] = "FLAC"
+    assert load_settings().output.format == "flac"
+    env["WINNOWER_OUTPUT_FORMAT"] = "wav"
+    with pytest.raises(ValueError, match="output format"):
+        load_settings()

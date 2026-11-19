@@ -6,7 +6,7 @@ Samples are grouped by Camelot key, so neighbouring folders mix harmonically::
     samples/no key/nokey_108bpm_4bar_8.9s_crackling-airy-rain-on-tin-roof_8f31c0.flac
     samples/no key/nokey_120bpm_2bar_4.0s_rising-gesture-bowed-metal_0b7c2e.flac
 
-The ``.json`` sidecar sits next to its FLAC with the same name.
+The ``.json`` sidecar sits next to its FLAC or MP3 with the same name.
 """
 
 from __future__ import annotations

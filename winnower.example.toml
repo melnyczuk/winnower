@@ -29,3 +29,10 @@ target_duration_s = 10.0
 max_duration_s = 24.0
 bpm_min = 70
 bpm_max = 150
+
+[output]
+# "flac" (default): lossless, loops play seamlessly.
+# "mp3": 320k CBR, about 3-4x smaller. MP3 encoders pad the start and end of the file, so
+# a sampler or DAW that ignores the gapless header may click or drift at the loop point.
+# Env: WINNOWER_OUTPUT_FORMAT. Changing it later leaves existing samples as they are.
+format = "flac"

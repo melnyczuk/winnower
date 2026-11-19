@@ -7,9 +7,10 @@ import soundfile as sf
 import synth
 from fakes import FakeResponse, FakeSession
 from mutagen.flac import FLAC
+from mutagen.mp3 import MP3
 
 from winnower import index
-from winnower.config import AnalysisSettings, Settings
+from winnower.config import AnalysisSettings, OutputSettings, Settings
 from winnower.pipeline import harvest
 from winnower.sources.base import (
     DailyQuotaExceeded,
@@ -104,6 +105,30 @@ def hit(i):
         "duration": 10.0,
         "previews": {"preview-hq-ogg": f"https://cdn.freesound.org/{i}.ogg"},
     }
+
+
+def test_mp3_output_is_tagged_and_named(tmp_path):
+    store = Store(str(tmp_path))
+    audio = ogg_bytes(np.concatenate([synth.rain(12)[0], synth.crackle_drone(12)[0]])[None])
+    settings = Settings(
+        analysis=AnalysisSettings(sample_rate=synth.SR), output=OutputSettings("mp3")
+    )
+    items = [item("1", "https://creativecommons.org/licenses/by/4.0/")]
+    counts = harvest(items, lambda it: audio, store, settings)
+    assert counts["samples"] >= 1 and counts["errors"] == 0
+
+    sc = store.read_json(next(iter(store.glob("samples/*/*.json"))))
+    assert sc["file"].endswith(f"_{sc['id'][:6]}.mp3")
+    assert sc["audio"]["format"] == "mp3" and sc["audio"]["subtype"] == "MP3_320_CBR"
+    data = store.read_bytes(sc["file"])
+    y, sr = sf.read(io.BytesIO(data))
+    assert sr == synth.SR and abs(len(y) / sr - sc["audio"]["duration_s"]) < 0.1
+    mp3 = MP3(io.BytesIO(data))
+    # Top constant bitrate: 320k at 32 kHz and up, 160k (MPEG-2's ceiling) below.
+    assert mp3.info.bitrate // 1000 == (320 if synth.SR >= 32000 else 160)
+    assert mp3.tags["TBPM"].text == [str(sc["region"]["bpm"])]
+    assert str(mp3.tags["TCOP"]).startswith('"t1"')
+    assert mp3.tags.getall("COMM")[0].text[0].startswith(f"winnower {sc['id']}")
 
 
 def test_freesound_search_paginates_and_maps_fields():

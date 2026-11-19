@@ -1,7 +1,7 @@
 # winnower
 
 Finds licensed audio online, keeps the aurally interesting phrases, and stores each one
-as a FLAC file with a JSON sidecar describing it. Regions are found by timbral change, and
+as a FLAC (or, optionally, MP3) file with a JSON sidecar describing it. Regions are found by timbral change, and
 anything too uniform (hum, room tone, plain noise) is rejected. Every phrase is then cut to
 a whole number of bars and baked into a seamless loop: on the recording's own beat when it
 has one, and on a beat fitted to the sound when it doesn't (rain, drones, crackle).
@@ -26,7 +26,9 @@ Background and design decisions: the research report "Sample crawler stack" (Cla
       arrhythmic ones; every cut is 1, 2, 4 or 8 bars at a whole-number BPM (70 to 150)
 - [x] Seamless loops: the crossfade is baked in, so the file loops in any player or DAW
 - [x] Key (Krumhansl-Schmuckler on chroma), Camelot folders, descriptive file names,
-      BPM/key/attribution written into the FLAC tags
+      BPM/key/attribution written into the file's tags (Vorbis comments or ID3)
+- [x] Output format: FLAC by default, or 320k MP3 (`[output] format = "mp3"`, about 3-4x
+      smaller; some DAWs leave a small gap at the MP3 loop point)
 - [x] Local files and folders (`harvest local`): album tags read with mutagen, files already
       processed are skipped, long files analysed in 10-minute chunks. Without `--licence`,
       samples are flagged `local-unknown` and left out of `list --commercial`.
@@ -171,9 +173,9 @@ advice.
 
 ```
 sources/{provider}/{provider_id}/meta.json   API response, licence, status
-samples/{camelot} {key}/{name}.flac          the cut phrase, e.g. samples/8A A minor/
+samples/{camelot} {key}/{name}.flac|mp3      the cut phrase, e.g. samples/8A A minor/
 samples/{camelot} {key}/{name}.json          sidecar: the source of truth
-samples/no key/{name}.flac|json              noise, crackle, most percussion
+samples/no key/{name}.flac|mp3|json          noise, crackle, most percussion
 index/samples.jsonl                          derived, rebuildable
 ```
 

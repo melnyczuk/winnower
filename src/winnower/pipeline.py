@@ -1,4 +1,4 @@
-"""Glue: source item -> licence gate -> analysis -> cut regions -> FLAC + sidecars."""
+"""Glue: source item -> licence gate -> analysis -> cut regions -> FLAC/MP3 + sidecars."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from typing import Literal
 import librosa
 import numpy as np
 import soundfile as sf
+from mutagen import id3
 from mutagen.flac import FLAC
 
 from . import PIPELINE_VERSION
@@ -79,26 +80,67 @@ def _cut(y: np.ndarray, sr: int, r: Region) -> tuple[np.ndarray, int]:
     return seg, 0
 
 
-def _flac(seg: np.ndarray, sr: int, subtype: str) -> bytes:
+MP3_SUBTYPE = "MP3_320_CBR"  # what the sidecar records for MP3 output
+
+
+def _encode(seg: np.ndarray, sr: int, fmt: str, subtype: str) -> bytes:
     buf = io.BytesIO()
-    sf.write(buf, seg.T, sr, format="FLAC", subtype=subtype)
+    if fmt == "mp3":
+        # compression_level 0.0 is LAME's highest bitrate: 320k at constant rate.
+        sf.write(
+            buf,
+            np.clip(seg, -1.0, 1.0).T,
+            sr,
+            format="MP3",
+            subtype="MPEG_LAYER_III",
+            bitrate_mode="CONSTANT",
+            compression_level=0.0,
+        )
+    else:
+        sf.write(buf, seg.T, sr, format="FLAC", subtype=subtype)
     return buf.getvalue()
 
 
-def _tagged(data: bytes, sidecar: dict) -> bytes:
-    """Vorbis comments DAWs and players read: tempo, key, title, and the attribution, so a
-    CC BY credit travels with the file."""
-    buf = io.BytesIO(data)
-    tags = FLAC(buf)
+def _tag_values(sidecar: dict) -> dict[str, str]:
     src, region, key = sidecar["source"], sidecar["region"], sidecar["key"]
-    tags["BPM"] = str(region["bpm"])
+    values = {
+        "BPM": str(region["bpm"]),
+        "TITLE": f"{src.get('title') or 'untitled'} ({region['type']})",
+        "COPYRIGHT": src.get("attribution") or "",
+        "COMMENT": f"winnower {sidecar['id']}; source {src.get('page_url') or ''}",
+    }
     if key:
-        tags["INITIALKEY"] = key["short"]
-    tags["TITLE"] = f"{src.get('title') or 'untitled'} ({region['type']})"
+        values["INITIALKEY"] = key["short"]
     if src.get("author"):
-        tags["ARTIST"] = src["author"]
-    tags["COPYRIGHT"] = src.get("attribution") or ""
-    tags["COMMENT"] = f"winnower {sidecar['id']}; source {src.get('page_url') or ''}"
+        values["ARTIST"] = src["author"]
+    return values
+
+
+_ID3_FRAMES = {
+    "BPM": id3.TBPM,
+    "INITIALKEY": id3.TKEY,
+    "TITLE": id3.TIT2,
+    "ARTIST": id3.TPE1,
+    "COPYRIGHT": id3.TCOP,
+}
+
+
+def _tagged(data: bytes, sidecar: dict, fmt: str = "flac") -> bytes:
+    """Tags DAWs and players read: tempo, key, title, and the attribution, so a CC BY
+    credit travels with the file. Vorbis comments for FLAC, ID3v2 for MP3."""
+    values = _tag_values(sidecar)
+    buf = io.BytesIO(data)
+    if fmt == "mp3":
+        tags = id3.ID3()
+        for name, value in values.items():
+            if name == "COMMENT":
+                tags.add(id3.COMM(encoding=3, lang="eng", desc="", text=value))
+            else:
+                tags.add(_ID3_FRAMES[name](encoding=3, text=value))
+    else:
+        tags = FLAC(buf)
+        for name, value in values.items():
+            tags[name] = value
     buf.seek(0)
     tags.save(buf)
     return buf.getvalue()
@@ -159,7 +201,8 @@ def process_audio(
     analysed_from: str,
     lossy: bool = False,
 ) -> list[dict]:
-    """Analyse one file and write a FLAC + sidecar for each selected region.
+    """Analyse one file and write a sample (FLAC or MP3, per ``settings.output``) and a
+    sidecar for each selected region.
 
     Files longer than ``settings.analysis.chunk_s`` are read and analysed chunk by chunk
     (each chunk can yield up to ``max_regions_per_file``), so a 70-minute album side or DJ
@@ -168,13 +211,16 @@ def process_audio(
     total = audio_duration(audio)
     # Lossy sources gain nothing from 24-bit; keep 24-bit for lossless ones.
     subtype = "PCM_16" if lossy or analysed_from == "preview" else "PCM_24"
+    fmt = settings.output.format
     a = settings.analysis
     loaded = (  # lazy: one chunk in memory at a time
         (offset, *load_audio(audio, a.sample_rate, offset=offset, duration=dur))
         for offset, dur in chunks(total, a.chunk_s)
     )
     return [
-        _write_region(store, _prepare(y, sr, r, offset, subtype, source, licence, analysed_from))
+        _write_region(
+            store, _prepare(y, sr, r, offset, fmt, subtype, source, licence, analysed_from)
+        )
         for offset, y, sr in loaded
         for r in find_regions(
             y,
@@ -196,15 +242,15 @@ def chunks(total: float, size: float) -> Iterator[tuple[float, float]]:
 
 @dataclass(frozen=True)
 class _Region:
-    """A cut region ready to write: its FLAC bytes and sidecar."""
+    """A cut region ready to write: its encoded audio and sidecar."""
 
-    flac: bytes
+    data: bytes
     sidecar: dict
 
 
-def _prepare(y, sr, r: Region, offset, subtype, source, licence, analysed_from) -> _Region:
+def _prepare(y, sr, r: Region, offset, fmt, subtype, source, licence, analysed_from) -> _Region:
     seg, xfade = _cut(y, sr, r)
-    data = _flac(seg, sr, subtype)
+    data = _encode(seg, sr, fmt, subtype)
     sid = hashlib.sha256(data).hexdigest()[:24]
     loop, g = r.loop, r.grid
     sidecar = {
@@ -237,7 +283,8 @@ def _prepare(y, sr, r: Region, offset, subtype, source, licence, analysed_from) 
         "audio": {
             "sr": sr,
             "channels": int(seg.shape[0]),
-            "subtype": subtype,
+            "format": fmt,
+            "subtype": MP3_SUBTYPE if fmt == "mp3" else subtype,
             "duration_s": round(seg.shape[1] / sr, 3),
             "analysed_from": analysed_from,
         },
@@ -248,12 +295,12 @@ def _prepare(y, sr, r: Region, offset, subtype, source, licence, analysed_from) 
         "caption": None,
         "pipeline": {"version": PIPELINE_VERSION, "created_at": _now()},
     }
-    sidecar["file"] = sample_path(sidecar, "flac")
-    return _Region(_tagged(data, sidecar), sidecar)
+    sidecar["file"] = sample_path(sidecar, fmt)
+    return _Region(_tagged(data, sidecar, fmt), sidecar)
 
 
 def _write_region(store: Store, region: _Region) -> dict:
-    store.write_bytes(region.sidecar["file"], region.flac)
+    store.write_bytes(region.sidecar["file"], region.data)
     store.write_json(sample_path(region.sidecar, "json"), region.sidecar)
     return region.sidecar
 

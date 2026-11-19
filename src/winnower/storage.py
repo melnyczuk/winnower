@@ -7,9 +7,9 @@ the project goes through :class:`Store`, so switching is a copy plus a config ch
 Layout (relative to the root)::
 
     sources/{provider}/{provider_id}/meta.json   API response + licence snapshot
-    samples/{camelot} {key}/{name}.flac          the cut region, lossless (see naming.py)
+    samples/{camelot} {key}/{name}.flac|mp3      the cut region (see naming.py)
     samples/{camelot} {key}/{name}.json          sidecar: the source of truth
-    samples/no key/{name}.flac|json              atonal material
+    samples/no key/{name}.flac|mp3|json          atonal material
     index/samples.jsonl                          derived, rebuildable
 
 Samples from v0.1 stay where they were, in ``samples/{id[:2]}/{id}.flac``.
